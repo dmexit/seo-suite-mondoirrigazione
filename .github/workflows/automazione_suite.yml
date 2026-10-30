@@ -1,0 +1,67 @@
+name: Automazione SEO Suite & Keep-Alive
+
+on:
+  schedule:
+    # Turno mattutino: 06:30 UTC (07:30 ora solare / 08:30 ora legale italiana) -> Keep-Alive + Cron Report
+    - cron: '30 6 * * *'
+    # Turno serale: 18:30 UTC -> Keep-Alive App Streamlit
+    - cron: '30 18 * * *'
+  workflow_dispatch:
+    inputs:
+      force_run:
+        description: "Forza l'aggiornamento e l'invio del report anche fuori giorno programmato (--force)"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+jobs:
+  keep_alive_and_report:
+    name: Keep-Alive & Report Automatico
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Keep-Alive App Streamlit Community Cloud
+        env:
+          STREAMLIT_APP_URL: ${{ secrets.STREAMLIT_APP_URL }}
+        run: |
+          if [ -n "$STREAMLIT_APP_URL" ]; then
+            echo "Invio richiesta Keep-Alive a Streamlit Cloud: $STREAMLIT_APP_URL"
+            curl -s -L --max-time 30 "$STREAMLIT_APP_URL" > /dev/null || true
+          else
+            echo "Secret STREAMLIT_APP_URL non configurato, salto ping web app."
+          fi
+
+      - name: Configura Python 3.11
+        if: github.event_name == 'workflow_dispatch' || github.event.schedule == '30 6 * * *'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Installa dipendenze Python
+        if: github.event_name == 'workflow_dispatch' || github.event.schedule == '30 6 * * *'
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Esegui Aggiornamento & Report (cron_report.py)
+        if: github.event_name == 'workflow_dispatch' || github.event.schedule == '30 6 * * *'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          if [ "${{ github.event.inputs.force_run }}" = "true" ]; then
+            python cron_report.py --force
+          else
+            python cron_report.py
+          fi
+

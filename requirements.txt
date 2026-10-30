@@ -1,0 +1,11 @@
+streamlit
+supabase
+python-dotenv
+pandas
+requests
+beautifulsoup4
+lxml
+plotly
+curl_cffi
+google-genai
+duckduckgo-search

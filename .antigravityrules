@@ -1,0 +1,21 @@
+# Regole di Progetto — SEO, Prezzi & Backlink Suite (Mondoirrigazione)
+
+Leggi sempre `CONTEXT.md` nella root del progetto come riferimento architetturale primario.
+
+## 1. Architettura & Stack
+- App multi-page Streamlit (`.venv/bin/python`, `.venv/bin/streamlit run app.py`) con backend Supabase (`PostgreSQL` + `Auth`).
+- File principali: `app.py`, `db.py`, `scraper.py`, `mailer.py`, `cron_report.py`, e le viste in `views/` (`prezzi.py`, `seo.py`, `backlink.py`, `impostazioni.py`).
+- Variabili `.env`: `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SERPER_API_KEY`, `GEMINI_API_KEY` (sempre lette con `load_dotenv(override=True)`).
+
+## 2. Database Supabase & Tipi di Dato
+- **ID sempre UUID (`str`)**: Tutte le tabelle (`prodotti`, `competitors`, `prodotti_competitor`, `storico_prezzi`, `seo_keywords`, `seo_storico`, `backlinks`) usano `UUID` come `id` e foreign key. **Mai usare `int(id)`**, convertire sempre con `str(id)`. Solo `impostazioni` usa `id = 1`.
+- **Upload CSV flessibile (`read_csv_flexible` in `db.py`)**: supporta separatori `,` e `;`, normalizza gli header in minuscolo, converte vuoti/`NaN` in `None` (e `mio_prezzo` vuoto in `0.0`).
+
+## 3. Regole UI & Coding
+- **Zero Emoji**: Non usare mai emoji colorate. Usa solo icone Google Material di Streamlit (`:material/nome_icona:`).
+- **Thread-Safety**: Nei worker di `ThreadPoolExecutor` (`scraper.py`) non chiamare mai funzioni `st.*` né leggere `st.session_state`. Aggiorna `st.progress` e salva su Supabase step-by-step solo nel thread principale (`for future in done:`).
+- **Scraping & SERP**:
+  - Usa `curl_cffi` con `impersonate="chrome120"` e timeout rigorosi (`5s` prezzi, `10s` backlink) + fallback `requests`.
+  - Non ricercare mai un URL prodotto se `mio_url` o `url_prodotto` è già salvato a database (salvo quando `mio_prezzo == 0` in modalità discovery).
+  - Usa `unwrap_google_url()` per decodificare eventuali URL `google.com/goto?url=CAES...` nelle SERP di Serper.dev.
+

@@ -1,0 +1,20 @@
+# Variabili d'ambiente e segreti (MAI caricare su GitHub)
+.env
+.env.*
+.streamlit/secrets.toml
+
+# Virtual environment Python
+.venv/
+venv/
+env/
+
+# Bytecode e cache Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Log e file temporanei di sistema
+*.log
+.DS_Store
+Thumbs.db
