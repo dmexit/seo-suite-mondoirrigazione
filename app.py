@@ -1,5 +1,5 @@
 import streamlit as st
-from db import get_impostazioni, sign_in, sign_out
+from db import get_impostazioni, get_supabase_client, sign_in, sign_out
 
 st.set_page_config(
     page_title="SEO Suite Dashboard",
@@ -37,7 +37,10 @@ def render_login() -> None:
                         )
                     else:
                         try:
-                            sign_in(email.strip(), password)
+                            res = sign_in(email.strip(), password)
+                            if res and getattr(res, "session", None):
+                                st.session_state["access_token"] = res.session.access_token
+                                st.session_state["refresh_token"] = res.session.refresh_token
                             get_impostazioni(force_refresh=True)
                             st.toast("Accesso effettuato!", icon=":material/check_circle:")
                             st.rerun()
@@ -49,10 +52,13 @@ def render_login() -> None:
 
 
 def main() -> None:
-    # 1. Controllo autenticazione
+    # 1. Controllo autenticazione e rinnovo automatico eventuale JWT scaduto
     if "user" not in st.session_state or st.session_state["user"] is None:
         render_login()
         return
+
+    # Verifica/rinnova preventivamente il client Supabase in caso di JWT prossimo a scadenza
+    get_supabase_client()
 
     # 2. Caricamento dati di brand dalla tabella 'impostazioni' (id = 1)
     impostazioni = get_impostazioni()

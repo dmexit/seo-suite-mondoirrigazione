@@ -171,6 +171,47 @@ def _render_evoluzione_badge_inline(
         return '<span style="color:#64748b;font-size:12px;font-weight:600;">= Stabile</span>'
 
 
+def _render_evoluzione_short_inline(
+    ultimo_prezzo: Any,
+    prezzo_precedente: Any,
+) -> str:
+    """
+    Badge compatto di evoluzione mostrato direttamente accanto a ogni Scostamento %:
+    - `▲ +€ X.XX` (rosso/arancio) se il prezzo competitor è salito rispetto a `prezzo_precedente`
+    - `▼ -€ X.XX` (verde/blu) se il prezzo competitor è sceso rispetto a `prezzo_precedente`
+    - `=` (grigio) se invariato
+    """
+    try:
+        if ultimo_prezzo is None or float(ultimo_prezzo) <= 0:
+            return ""
+        curr = round(float(ultimo_prezzo), 2)
+        if prezzo_precedente is None or float(prezzo_precedente) <= 0:
+            return (
+                '<span style="display:inline-block;margin-left:4px;padding:2px 6px;border-radius:5px;'
+                'background-color:#f1f5f9;color:#64748b;font-weight:700;font-size:11px;">=</span>'
+            )
+        prev = round(float(prezzo_precedente), 2)
+        delta = round(curr - prev, 2)
+        if abs(delta) < 0.01:
+            return (
+                '<span style="display:inline-block;margin-left:4px;padding:2px 6px;border-radius:5px;'
+                'background-color:#f1f5f9;color:#64748b;font-weight:700;font-size:11px;">=</span>'
+            )
+        if delta > 0:
+            return (
+                f'<span style="display:inline-block;margin-left:4px;padding:2px 6px;border-radius:5px;'
+                f'background-color:#ffedd5;color:#c2410c;font-weight:700;font-size:11px;">'
+                f"&#9650; +&euro; {delta:.2f}</span>"
+            )
+        return (
+            f'<span style="display:inline-block;margin-left:4px;padding:2px 6px;border-radius:5px;'
+            f'background-color:#e0f2fe;color:#0369a1;font-weight:700;font-size:11px;">'
+            f"&#9660; -&euro; {abs(delta):.2f}</span>"
+        )
+    except (ValueError, TypeError):
+        return ""
+
+
 def _render_group_matrix_table(
     group_key: str,
     group_title: str,
@@ -178,7 +219,7 @@ def _render_group_matrix_table(
     competitors: List[Dict[str, Any]],
     assoc_map: Dict[Tuple[str, str], Dict[str, Any]],
 ) -> str:
-    """Costruisce la tabella HTML con lo scostamento medio % per Categoria o per Marchio."""
+    """Costruisce la tabella HTML con lo scostamento medio % ed evoluzione per Categoria o per Marchio."""
     groups: Dict[str, List[Dict[str, Any]]] = {}
     for p in prodotti:
         g_name = (p.get(group_key) or "Non specificato").strip() or "Non specificato"
@@ -208,24 +249,43 @@ def _render_group_matrix_table(
         for c in competitors:
             c_id = str(c["id"])
             diffs: List[float] = []
+            curr_prices: List[float] = []
+            prev_prices: List[float] = []
             for p in g_prods:
                 p_id = str(p["id"])
                 rec = assoc_map.get((p_id, c_id))
                 comp_p = rec.get("ultimo_prezzo") if rec else None
+                comp_prev = rec.get("prezzo_precedente") if rec else None
                 d = _calc_diff_pct(p.get("mio_prezzo"), comp_p)
                 if d is not None:
                     diffs.append(d)
+                if comp_p is not None and float(comp_p) > 0:
+                    c_val = float(comp_p)
+                    p_val = (
+                        float(comp_prev)
+                        if (comp_prev is not None and float(comp_prev) > 0)
+                        else c_val
+                    )
+                    curr_prices.append(c_val)
+                    prev_prices.append(p_val)
             avg_d = (sum(diffs) / len(diffs)) if diffs else None
+            avg_curr = (sum(curr_prices) / len(curr_prices)) if curr_prices else None
+            avg_prev = (sum(prev_prices) / len(prev_prices)) if prev_prices else None
+            evol_short = (
+                _render_evoluzione_short_inline(avg_curr, avg_prev)
+                if avg_d is not None
+                else ""
+            )
             td_comps.append(
-                f'<td style="padding:10px 12px;text-align:center;border-bottom:1px solid #f1f5f9;">'
-                f"{_render_diff_badge_inline(avg_d)}</td>"
+                f'<td style="padding:10px 12px;text-align:center;border-bottom:1px solid #f1f5f9;white-space:nowrap;">'
+                f"{_render_diff_badge_inline(avg_d)}{evol_short}</td>"
             )
         rows_html.append(f"<tr>{td_Start}{''.join(td_comps)}</tr>")
 
     return f"""
     <div style="margin-top:14px;margin-bottom:18px;">
       <div style="font-size:14px;font-weight:700;color:#1e293b;margin-bottom:8px;">
-        Scostamento Medio % per {_esc(group_title)}
+        Scostamento Medio % ed Evoluzione per {_esc(group_title)}
       </div>
       <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
         <thead>
@@ -339,8 +399,8 @@ def genera_html_report() -> str:
                   <td style="padding:10px 12px;text-align:right;border-bottom:1px solid #f1f5f9;font-size:13px;font-weight:700;color:#b91c1c;">
                     &euro; {item["comp_prezzo"]:.2f}
                   </td>
-                  <td style="padding:10px 12px;text-align:center;border-bottom:1px solid #f1f5f9;">
-                    {_render_diff_badge_inline(item["diff_pct"])}
+                  <td style="padding:10px 12px;text-align:center;border-bottom:1px solid #f1f5f9;white-space:nowrap;">
+                    {_render_diff_badge_inline(item["diff_pct"])}{_render_evoluzione_short_inline(item["comp_prezzo"], item["comp_prev_prezzo"])}
                   </td>
                   <td style="padding:10px 12px;text-align:center;border-bottom:1px solid #f1f5f9;">
                     {_render_evoluzione_badge_inline(item["comp_prezzo"], item["comp_prev_prezzo"])}

@@ -700,15 +700,45 @@ def _extract_price_from_jsonld(data: Any) -> Optional[float]:
     return None
 
 
-def estrai_prezzo_da_url(url: str, descrizione: str = "") -> Optional[float]:
+def _is_price_sane(
+    price_val: Optional[float],
+    mio_prezzo_riferimento: Optional[float] = None,
+) -> bool:
+    """
+    Filtro di Sanità (Sanity Check) sul prezzo estratto:
+    Se `mio_prezzo_riferimento > 0` e il prezzo estratto su un competitor è:
+    - più di 4 volte superiore (`price_val > mio_prezzo_riferimento * 4.0`), oppure
+    - inferiore al 15% (`price_val < mio_prezzo_riferimento * 0.15`),
+    lo scarta restituendo False (evita falsi positivi da 900 € su prodotti da 20 €).
+    """
+    if price_val is None or price_val <= 0:
+        return False
+    if mio_prezzo_riferimento is not None:
+        try:
+            ref = float(mio_prezzo_riferimento)
+            if ref > 0:
+                if price_val > (ref * 4.0) or price_val < (ref * 0.15):
+                    return False
+        except (ValueError, TypeError):
+            pass
+    return True
+
+
+def estrai_prezzo_da_url(
+    url: str,
+    descrizione: str = "",
+    mio_prezzo_riferimento: Optional[float] = None,
+) -> Optional[float]:
     """
     Scarica la pagina prodotto con curl_cffi (impersonate='chrome120', timeout=5) ed estrae il prezzo:
-    1. Selettori Amazon.it (span.a-price span.a-offscreen, .a-price-whole + .a-price-fraction).
+    1. Selettori rigorosi Amazon.it (solo container del prezzo principale del prodotto dentro #centerCol/#ppd,
+       mai nei caroselli sponsorizzati, con controllo immediato su #availability "Non disponibile").
     2. JSON-LD (schema.org/Product -> offers).
     3. Meta Tag (product:price:amount, og:price:amount, itemprop="price").
     4. Selettori DOM VirtueMart (.PricesalesPrice, .price-sales), PrestaShop (.current-price, [itemprop="price"]), WooCommerce.
     5. Regex Euro sul blocco prodotto.
     6. Fallback finale AI con Gemini (timeout 6s) SOLO se la pagina è valida (> 500 char e non bloccata da Cloudflare/Captcha).
+    Applica sempre il Filtro di Sanità rispetto a `mio_prezzo_riferimento` (se > 0).
     """
     if not url or not str(url).strip().startswith(("http://", "https://")):
         return None
@@ -723,38 +753,62 @@ def estrai_prezzo_da_url(url: str, descrizione: str = "") -> Optional[float]:
     except Exception:
         soup = BeautifulSoup(html, "html.parser")
 
-    # 1. Supporto specifico Amazon.it
+    # 1. Supporto rigoroso Amazon (esclusivamente container principale del prodotto, MAI caroselli!)
     if "amazon." in target_url.lower():
-        amazon_selectors = [
+        primary_core_el = soup.select_one(
+            "#corePriceDisplay_desktop_feature_div span.a-price span.a-offscreen"
+        )
+        primary_core_price = (
+            _parse_price_string(primary_core_el.get_text(" ", strip=True))
+            if primary_core_el
+            else None
+        )
+
+        # Controllo disponibilità: se "Non disponibile" e non c'è prezzo in #corePriceDisplay_desktop_feature_div -> None
+        avail_el = soup.select_one("#availability, #outOfStock")
+        avail_txt = avail_el.get_text(" ", strip=True).lower() if avail_el else ""
+        if (
+            "attualmente non disponibile" in avail_txt
+            or "non disponibile" in avail_txt
+            or "currently unavailable" in avail_txt
+        ) and primary_core_price is None:
+            return None
+
+        if _is_price_sane(primary_core_price, mio_prezzo_riferimento):
+            return primary_core_price
+
+        amazon_strict_selectors = [
             "#corePriceDisplay_desktop_feature_div span.a-price span.a-offscreen",
             "#corePrice_feature_div span.a-price span.a-offscreen",
             "#apex_desktop span.a-price span.a-offscreen",
-            "span.a-price.aok-align-center span.a-offscreen",
+            "#tp_price_block_total_price_ww span.a-offscreen",
             "#priceblock_ourprice",
             "#priceblock_dealprice",
             "#price_inside_buybox",
-            "#newBuyBoxPrice",
-            "span.a-price span.a-offscreen",
         ]
-        for sel in amazon_selectors:
+        for sel in amazon_strict_selectors:
             el = soup.select_one(sel)
             if el:
                 p = _parse_price_string(el.get_text(" ", strip=True))
-                if p is not None:
+                if _is_price_sane(p, mio_prezzo_riferimento):
                     return p
 
-        whole_el = soup.select_one(
-            "#corePriceDisplay_desktop_feature_div .a-price-whole, #corePrice_feature_div .a-price-whole, .a-price-whole"
+        # Fallback .a-price-whole + .a-price-fraction SOLO dentro #centerCol o #ppd (MAI nell'intero soup!)
+        main_prod_scope = soup.select_one(
+            "#corePriceDisplay_desktop_feature_div, #corePrice_feature_div, #apex_desktop, #centerCol, #ppd"
         )
-        frac_el = soup.select_one(
-            "#corePriceDisplay_desktop_feature_div .a-price-fraction, #corePrice_feature_div .a-price-fraction, .a-price-fraction"
-        )
-        if whole_el:
-            w_txt = re.sub(r"[^\d]", "", whole_el.get_text())
-            f_txt = re.sub(r"[^\d]", "", frac_el.get_text()) if frac_el else "00"
-            p = _parse_price_string(f"{w_txt}.{f_txt}")
-            if p is not None:
-                return p
+        if main_prod_scope:
+            whole_el = main_prod_scope.select_one(".a-price-whole")
+            frac_el = main_prod_scope.select_one(".a-price-fraction")
+            if whole_el:
+                w_txt = re.sub(r"[^\d]", "", whole_el.get_text())
+                f_txt = re.sub(r"[^\d]", "", frac_el.get_text()) if frac_el else "00"
+                p = _parse_price_string(f"{w_txt}.{f_txt}")
+                if _is_price_sane(p, mio_prezzo_riferimento):
+                    return p
+
+        # Per Amazon non eseguire mai fallback generici sull'intera pagina (che pescano i caroselli sponsorizzati)
+        return None
 
     # 2. JSON-LD (schema.org/Product -> offers)
     for script in soup.find_all("script", type="application/ld+json"):
@@ -764,7 +818,7 @@ def estrai_prezzo_da_url(url: str, descrizione: str = "") -> Optional[float]:
         try:
             parsed_json = json.loads(raw_json.strip())
             price = _extract_price_from_jsonld(parsed_json)
-            if price is not None:
+            if _is_price_sane(price, mio_prezzo_riferimento):
                 return price
         except Exception:
             continue
@@ -780,7 +834,7 @@ def estrai_prezzo_da_url(url: str, descrizione: str = "") -> Optional[float]:
         el = soup.find(tag_name, attrs=attrs)
         if el and el.get("content"):
             price = _parse_price_string(el.get("content"))
-            if price is not None:
+            if _is_price_sane(price, mio_prezzo_riferimento):
                 return price
 
     # 4. Selettori DOM VirtueMart, PrestaShop (Agricolbio/Mondoirrigazione), WooCommerce, Magento
@@ -818,7 +872,7 @@ def estrai_prezzo_da_url(url: str, descrizione: str = "") -> Optional[float]:
             ):
                 if candidate_val:
                     price = _parse_price_string(candidate_val)
-                    if price is not None:
+                    if _is_price_sane(price, mio_prezzo_riferimento):
                         return price
 
     # 5. Regex su contenitori scheda prodotto vicino a € / EUR
@@ -836,7 +890,7 @@ def estrai_prezzo_da_url(url: str, descrizione: str = "") -> Optional[float]:
         if m:
             raw_num = m.group(1) or m.group(2)
             price = _parse_price_string(raw_num)
-            if price is not None:
+            if _is_price_sane(price, mio_prezzo_riferimento):
                 return price
 
     # 6. Fallback finale AI con Gemini SOLO se la pagina è valida (> 500 caratteri e non è un blocco/captcha)
@@ -855,7 +909,7 @@ def estrai_prezzo_da_url(url: str, descrizione: str = "") -> Optional[float]:
             ai_res = _call_gemini_text(prompt)
             if ai_res and "NONE" not in ai_res.upper():
                 price = _parse_price_string(ai_res)
-                if price is not None:
+                if _is_price_sane(price, mio_prezzo_riferimento):
                     return price
 
     return None
@@ -881,6 +935,7 @@ def _worker_task(task: Dict[str, Any]) -> Dict[str, Any]:
     marchio = task.get("marchio") or ""
     dominio = (task.get("dominio") or "").strip()
     existing_url = (task.get("existing_url") or "").strip()
+    ref_price = task.get("mio_prezzo_riferimento")
     cerca_link = bool(
         task.get(
             "cerca_link_mancanti",
@@ -908,7 +963,11 @@ def _worker_task(task: Dict[str, Any]) -> Dict[str, Any]:
                 "old_price": task.get("old_price"),
                 "old_prev": task.get("old_prev"),
             }
-        scraped_price = estrai_prezzo_da_url(existing_url, desc)
+        scraped_price = estrai_prezzo_da_url(
+            existing_url,
+            desc,
+            mio_prezzo_riferimento=ref_price if task_type == "comp" else None,
+        )
         return {
             "task_type": task_type,
             "prodotto_id": p_id,
@@ -948,7 +1007,11 @@ def _worker_task(task: Dict[str, Any]) -> Dict[str, Any]:
 
     scraped_price = None
     if url_finale and url_finale.lower().startswith(("http://", "https://")):
-        scraped_price = estrai_prezzo_da_url(url_finale, desc)
+        scraped_price = estrai_prezzo_da_url(
+            url_finale,
+            desc,
+            mio_prezzo_riferimento=ref_price if task_type == "comp" else None,
+        )
 
     return {
         "task_type": task_type,
@@ -1099,6 +1162,7 @@ def esegui_auto_discovery_e_scraping(
                             "existing_url": comp_url,
                             "old_price": old_price,
                             "old_prev": old_prev,
+                            "mio_prezzo_riferimento": mio_prezzo_attuale if mio_prezzo_attuale > 0 else None,
                             "cerca_link_mancanti": True,
                             "discover_missing_urls": True,
                         }
@@ -1119,6 +1183,7 @@ def esegui_auto_discovery_e_scraping(
                             "existing_url": comp_url,
                             "old_price": old_price,
                             "old_prev": old_prev,
+                            "mio_prezzo_riferimento": mio_prezzo_attuale if mio_prezzo_attuale > 0 else None,
                             "cerca_link_mancanti": False,
                             "discover_missing_urls": False,
                         }

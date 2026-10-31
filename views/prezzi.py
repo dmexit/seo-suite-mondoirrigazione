@@ -12,6 +12,7 @@ from db import (
     get_prodotti,
     get_prodotti_competitor,
     read_csv_flexible,
+    scollega_prodotto_competitor,
     update_competitor,
     update_prodotto,
     upsert_prodotti_competitor,
@@ -270,50 +271,64 @@ def dialog_modifica_link_competitor(
         key=f"btn_sync_url_{p_id}_{c_id}",
     ):
         clean_u = nuovo_url.strip() or None
-        scraped_p = None
-        if clean_u:
-            with st.spinner("Lettura prezzo dalla pagina del competitor..."):
-                scraped_p = estrai_prezzo_da_url(clean_u, desc)
-
-        final_price = (
-            round(float(scraped_p), 2)
-            if scraped_p is not None and scraped_p > 0
-            else (round(float(prezzo_manuale), 2) if prezzo_manuale > 0 else None)
-        )
-        prev_to_save = (
-            old_price
-            if (final_price != old_price and old_price is not None)
-            else old_prev
-        )
-
-        try:
-            upsert_prodotti_competitor(
-                [
-                    {
-                        "prodotto_id": p_id,
-                        "competitor_id": c_id,
-                        "url_prodotto": clean_u,
-                        "ultimo_prezzo": final_price,
-                        "prezzo_precedente": prev_to_save,
-                    }
-                ],
-                record_history=True,
-            )
-            if scraped_p is not None and scraped_p > 0:
+        if clean_u is None:
+            try:
+                scollega_prodotto_competitor(p_id, c_id)
                 st.toast(
-                    f"URL salvato e prezzo rilevato dal sito: € {scraped_p:.2f}",
+                    "URL rimosso e prezzo competitor azzerato!",
                     icon=":material/check_circle:",
                 )
-            else:
-                st.toast(
-                    "URL salvato (prezzo automatico non esposto sulla pagina).",
-                    icon=":material/info:",
+                st.rerun()
+            except Exception as exc:
+                st.error(f"Errore durante l'azzeramento: {exc}", icon=":material/error:")
+        else:
+            scraped_p = None
+            with st.spinner("Lettura prezzo dalla pagina del competitor..."):
+                scraped_p = estrai_prezzo_da_url(
+                    clean_u,
+                    desc,
+                    mio_prezzo_riferimento=mio_p if mio_p > 0 else None,
                 )
-            st.rerun()
-        except Exception as exc:
-            st.error(f"Errore durante il salvataggio: {exc}", icon=":material/error:")
 
-    # Pulsante 2: Salva manualmente
+            final_price = (
+                round(float(scraped_p), 2)
+                if scraped_p is not None and scraped_p > 0
+                else (round(float(prezzo_manuale), 2) if prezzo_manuale > 0 else None)
+            )
+            prev_to_save = (
+                old_price
+                if (final_price != old_price and old_price is not None)
+                else old_prev
+            )
+
+            try:
+                upsert_prodotti_competitor(
+                    [
+                        {
+                            "prodotto_id": p_id,
+                            "competitor_id": c_id,
+                            "url_prodotto": clean_u,
+                            "ultimo_prezzo": final_price,
+                            "prezzo_precedente": prev_to_save,
+                        }
+                    ],
+                    record_history=True,
+                )
+                if scraped_p is not None and scraped_p > 0:
+                    st.toast(
+                        f"URL salvato e prezzo rilevato dal sito: € {scraped_p:.2f}",
+                        icon=":material/check_circle:",
+                    )
+                else:
+                    st.toast(
+                        "URL salvato (prezzo automatico non esposto sulla pagina).",
+                        icon=":material/info:",
+                    )
+                st.rerun()
+            except Exception as exc:
+                st.error(f"Errore durante il salvataggio: {exc}", icon=":material/error:")
+
+    # Pulsante 2: Salva manualmente (se URL è vuoto, azzera automaticamente anche ultimo_prezzo e prezzo_precedente)
     if st.button(
         "Salva manualmente",
         icon=":material/save:",
@@ -321,12 +336,16 @@ def dialog_modifica_link_competitor(
         key=f"btn_manual_save_{p_id}_{c_id}",
     ):
         clean_u = nuovo_url.strip() or None
-        final_price = round(float(prezzo_manuale), 2) if prezzo_manuale > 0 else None
-        prev_to_save = (
-            old_price
-            if (final_price != old_price and old_price is not None)
-            else old_prev
-        )
+        if clean_u is None:
+            final_price = None
+            prev_to_save = None
+        else:
+            final_price = round(float(prezzo_manuale), 2) if prezzo_manuale > 0 else None
+            prev_to_save = (
+                old_price
+                if (final_price != old_price and old_price is not None)
+                else old_prev
+            )
         try:
             upsert_prodotti_competitor(
                 [
@@ -340,10 +359,34 @@ def dialog_modifica_link_competitor(
                 ],
                 record_history=True,
             )
-            st.toast("Link e prezzo salvati manualmente!", icon=":material/check_circle:")
+            if clean_u is None:
+                st.toast(
+                    "URL svuotato: link e prezzo competitor azzerati!",
+                    icon=":material/check_circle:",
+                )
+            else:
+                st.toast("Link e prezzo salvati manualmente!", icon=":material/check_circle:")
             st.rerun()
         except Exception as exc:
             st.error(f"Errore durante il salvataggio: {exc}", icon=":material/error:")
+
+    # Pulsante 3: Scollega URL e Azzera Prezzo con un solo clic
+    if st.button(
+        "Scollega URL e Azzera Prezzo",
+        icon=":material/link_off:",
+        type="secondary",
+        use_container_width=True,
+        key=f"btn_unlink_clear_{p_id}_{c_id}",
+    ):
+        try:
+            scollega_prodotto_competitor(p_id, c_id)
+            st.toast(
+                "URL scollegato e prezzo azzerato per questo competitor!",
+                icon=":material/delete:",
+            )
+            st.rerun()
+        except Exception as exc:
+            st.error(f"Errore durante lo scollegamento: {exc}", icon=":material/error:")
 
 
 # =========================================================================
@@ -443,13 +486,132 @@ def badge_evoluzione_html(
     )
 
 
+def badge_evoluzione_inline_short_html(
+    ultimo_prezzo: Optional[float],
+    prezzo_precedente: Optional[float],
+) -> str:
+    """
+    Restituisce un badge compatto da affiancare direttamente ad ogni badge di Scostamento %:
+    - `▲ +€ X.XX (+Y.Y%)` (rosso/arancio) se il prezzo competitor è salito rispetto a `prezzo_precedente`
+    - `▼ -€ X.XX (-Y.Y%)` (verde/blu) se il prezzo competitor è sceso rispetto a `prezzo_precedente`
+    - `=` (grigio) se invariato
+    """
+    try:
+        if ultimo_prezzo is None or pd.isna(ultimo_prezzo) or float(ultimo_prezzo) <= 0:
+            return ""
+        curr = round(float(ultimo_prezzo), 2)
+        if (
+            prezzo_precedente is None
+            or pd.isna(prezzo_precedente)
+            or float(prezzo_precedente) <= 0
+        ):
+            return (
+                '<span title="Invariato rispetto alla rilevazione precedente" '
+                'style="color:#94A3B8; background:rgba(148,163,184,0.12); '
+                'padding:2px 6px; border-radius:5px; font-weight:600; font-size:0.78rem; margin-left:5px;">=</span>'
+            )
+        prev = round(float(prezzo_precedente), 2)
+        delta = round(curr - prev, 2)
+        if abs(delta) < 0.01:
+            return (
+                '<span title="Invariato rispetto alla rilevazione precedente" '
+                'style="color:#94A3B8; background:rgba(148,163,184,0.12); '
+                'padding:2px 6px; border-radius:5px; font-weight:600; font-size:0.78rem; margin-left:5px;">=</span>'
+            )
+        pct = ((curr - prev) / prev) * 100.0
+        if delta > 0:
+            return (
+                f'<span title="Prezzo competitor aumentato rispetto alla rilevazione precedente" '
+                f'style="color:#FB923C; background:rgba(251,146,60,0.15); '
+                f'padding:2px 6px; border-radius:5px; font-weight:600; font-size:0.78rem; margin-left:5px;">'
+                f"▲ +€ {delta:.2f} (+{pct:.1f}%)</span>"
+            )
+        return (
+            f'<span title="Prezzo competitor diminuito rispetto alla rilevazione precedente" '
+            f'style="color:#38BDF8; background:rgba(56,189,248,0.15); '
+            f'padding:2px 6px; border-radius:5px; font-weight:600; font-size:0.78rem; margin-left:5px;">'
+            f"▼ -€ {abs(delta):.2f} ({pct:.1f}%)</span>"
+        )
+    except (ValueError, TypeError):
+        return ""
+
+
+def filtra_e_ordina_prodotti(
+    prodotti_list: List[Dict[str, Any]],
+    search_query: str = "",
+    cat_filter: str = "Tutte",
+    mar_filter: str = "Tutti",
+    sort_by: str = "Nome (Descrizione A-Z)",
+) -> List[Dict[str, Any]]:
+    """Filtra e ordina la lista dei prodotti in base a ricerca testuale, Categoria, Marchio e criterio scelto."""
+    q = (search_query or "").strip().lower()
+    result = []
+    for p in prodotti_list:
+        cat_val = (p.get("categoria") or "Generale").strip() or "Generale"
+        mar_val = (p.get("marchio") or "Generico").strip() or "Generico"
+        if cat_filter and cat_filter != "Tutte" and cat_val != cat_filter:
+            continue
+        if mar_filter and mar_filter != "Tutti" and mar_val != mar_filter:
+            continue
+        if q:
+            desc_l = (p.get("descrizione") or "").lower()
+            sku_l = (p.get("sku") or "").lower()
+            if q not in desc_l and q not in sku_l and q not in cat_val.lower() and q not in mar_val.lower():
+                continue
+        result.append(p)
+
+    if sort_by == "Nome (Z-A)":
+        result.sort(key=lambda x: (x.get("descrizione") or "").lower(), reverse=True)
+    elif sort_by == "Categoria":
+        result.sort(
+            key=lambda x: (
+                (x.get("categoria") or "Generale").lower(),
+                (x.get("descrizione") or "").lower(),
+            )
+        )
+    elif sort_by == "Marchio":
+        result.sort(
+            key=lambda x: (
+                (x.get("marchio") or "Generico").lower(),
+                (x.get("descrizione") or "").lower(),
+            )
+        )
+    elif sort_by == "SKU":
+        result.sort(
+            key=lambda x: (
+                0 if (x.get("sku") or "").strip() else 1,
+                (x.get("sku") or "").lower(),
+                (x.get("descrizione") or "").lower(),
+            )
+        )
+    elif sort_by == "Prezzo (Crescente)":
+        result.sort(
+            key=lambda x: (
+                float(x.get("mio_prezzo") or 0.0),
+                (x.get("descrizione") or "").lower(),
+            )
+        )
+    elif sort_by == "Prezzo (Decrescente)":
+        result.sort(
+            key=lambda x: (
+                -float(x.get("mio_prezzo") or 0.0),
+                (x.get("descrizione") or "").lower(),
+            )
+        )
+    else:
+        # Default: Nome (Descrizione A-Z)
+        result.sort(key=lambda x: (x.get("descrizione") or "").lower())
+
+    return result
+
+
 def render_summary_grid(
     group_type: str,
     group_label: str,
     prodotti_list: List[Dict[str, Any]],
     competitors_list: List[Dict[str, Any]],
 ) -> None:
-    """Renderizza la griglia a 3 colonne dei box di sintesi per Categoria o Marchio."""
+    """Renderizza la griglia a 3 colonne dei box di sintesi per Categoria o Marchio con Scostamento % ed Evoluzione."""
     groups: Dict[str, List[Dict[str, Any]]] = {}
     for p in prodotti_list:
         val = (p.get(group_type) or "Non specificato").strip() or "Non specificato"
@@ -481,22 +643,49 @@ def render_summary_grid(
                         c_id = str(comp["id"])
                         c_nome = comp["nome"]
                         diffs = []
+                        curr_prices_for_evol = []
+                        prev_prices_for_evol = []
                         for p in group_prods:
                             p_id = str(p["id"])
                             mio_p = p.get("mio_prezzo")
                             rec = assoc_map.get((p_id, c_id))
                             comp_p = rec.get("ultimo_prezzo") if rec else None
+                            comp_prev_p = rec.get("prezzo_precedente") if rec else None
                             d = calcola_diff_pct(mio_p, comp_p)
                             if d is not None:
                                 diffs.append(d)
+                            if comp_p is not None and float(comp_p) > 0:
+                                c_val = float(comp_p)
+                                p_val = (
+                                    float(comp_prev_p)
+                                    if (comp_prev_p is not None and float(comp_prev_p) > 0)
+                                    else c_val
+                                )
+                                curr_prices_for_evol.append(c_val)
+                                prev_prices_for_evol.append(p_val)
 
                         avg_diff = sum(diffs) / len(diffs) if diffs else None
+                        avg_curr = (
+                            sum(curr_prices_for_evol) / len(curr_prices_for_evol)
+                            if curr_prices_for_evol
+                            else None
+                        )
+                        avg_prev = (
+                            sum(prev_prices_for_evol) / len(prev_prices_for_evol)
+                            if prev_prices_for_evol
+                            else None
+                        )
                         badge = badge_diff_html(avg_diff)
+                        evol_inline = (
+                            badge_evoluzione_inline_short_html(avg_curr, avg_prev)
+                            if avg_diff is not None
+                            else ""
+                        )
                         rows_html.append(
                             f'<div style="display:flex; justify-content:space-between; '
                             f'align-items:center; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.06);">'
                             f'<span style="color:#E2E8F0; font-size:0.9rem;">{c_nome}</span>'
-                            f"{badge}</div>"
+                            f'<span style="display:inline-flex; align-items:center;">{badge}{evol_inline}</span></div>'
                         )
 
                     st.markdown("".join(rows_html), unsafe_allow_html=True)
@@ -582,11 +771,19 @@ def render_detail_table(
                     else None
                 )
                 diff_val = calcola_diff_pct(mio_p, comp_p)
+                evol_txt = format_evoluzione_text(comp_p, comp_prev_p)
+                if diff_val is not None:
+                    evol_sym = (
+                        "▲"
+                        if evol_txt.startswith("▲")
+                        else ("▼" if evol_txt.startswith("▼") else "=")
+                    )
+                    diff_display = f"{'+' if diff_val > 0 else ''}{diff_val:.1f}%  {evol_sym}"
+                else:
+                    diff_display = "N/D"
                 row[f"{c_nome} (€)"] = comp_p
-                row[f"{c_nome} Diff %"] = diff_val
-                row[f"{c_nome} Evoluzione (vs prec.)"] = format_evoluzione_text(
-                    comp_p, comp_prev_p
-                )
+                row[f"{c_nome} Diff %"] = diff_display
+                row[f"{c_nome} Evoluzione (vs prec.)"] = evol_txt
 
             rows.append(row)
 
@@ -598,20 +795,14 @@ def render_detail_table(
         for comp in competitors_list:
             c_nome = comp["nome"]
             format_dict[f"{c_nome} (€)"] = lambda x: f"€ {x:.2f}" if pd.notna(x) else "N/D"
-            format_dict[f"{c_nome} Diff %"] = (
-                lambda x: f"{'+' if x > 0 else ''}{x:.1f}%" if pd.notna(x) else "N/D"
-            )
 
         def style_diff_cell(val: Any) -> str:
-            if val is None or pd.isna(val):
+            s = str(val or "").strip()
+            if not s or s == "N/D":
                 return "color: #94A3B8;"
-            try:
-                num = float(val)
-                if num < 0:
-                    return "color: #F87171; background-color: rgba(248, 113, 113, 0.14); font-weight: 600;"
-                return "color: #4ADE80; background-color: rgba(74, 222, 128, 0.14); font-weight: 600;"
-            except (ValueError, TypeError):
-                return ""
+            if s.startswith("-"):
+                return "color: #F87171; background-color: rgba(248, 113, 113, 0.14); font-weight: 600;"
+            return "color: #4ADE80; background-color: rgba(74, 222, 128, 0.14); font-weight: 600;"
 
         def style_evol_cell(val: Any) -> str:
             s = str(val or "")
@@ -908,12 +1099,73 @@ with tab_prodotti:
 
     st.divider()
 
-    # 3. Catalogo Prodotti con pulsanti espliciti "Modifica" ed "Elimina"
+    # 3. Catalogo Prodotti con filtri rapidi, ordinamento e pulsanti "Modifica" ed "Elimina"
     st.subheader(f":material/list_alt: Catalogo Prodotti ({len(prodotti)})")
 
     if not prodotti:
         st.info("Nessun prodotto presente a database.", icon=":material/info:")
     else:
+        categorie_disponibili = ["Tutte"] + sorted(
+            {
+                (p.get("categoria") or "Generale").strip() or "Generale"
+                for p in prodotti
+            },
+            key=lambda s: s.lower(),
+        )
+        marchi_disponibili = ["Tutti"] + sorted(
+            {
+                (p.get("marchio") or "Generico").strip() or "Generico"
+                for p in prodotti
+            },
+            key=lambda s: s.lower(),
+        )
+        opzioni_ordinamento = [
+            "Nome (Descrizione A-Z)",
+            "Nome (Z-A)",
+            "Categoria",
+            "Marchio",
+            "SKU",
+            "Prezzo (Crescente)",
+            "Prezzo (Decrescente)",
+        ]
+
+        with st.container(border=True):
+            f_col1, f_col2, f_col3, f_col4 = st.columns([1.6, 1.2, 1.2, 1.5])
+            with f_col1:
+                search_tab2 = st.text_input(
+                    "Cerca prodotto o SKU",
+                    placeholder="Filtra per descrizione, codice, marchio...",
+                    key="txt_search_prod_tab2",
+                )
+            with f_col2:
+                cat_tab2 = st.selectbox(
+                    "Filtro Categoria",
+                    options=categorie_disponibili,
+                    key="sel_cat_prod_tab2",
+                )
+            with f_col3:
+                mar_tab2 = st.selectbox(
+                    "Filtro Marchio",
+                    options=marchi_disponibili,
+                    key="sel_mar_prod_tab2",
+                )
+            with f_col4:
+                sort_tab2 = st.selectbox(
+                    "Ordina per:",
+                    options=opzioni_ordinamento,
+                    key="sel_sort_prod_tab2",
+                )
+
+        prodotti_tab2 = filtra_e_ordina_prodotti(
+            prodotti,
+            search_query=search_tab2,
+            cat_filter=cat_tab2,
+            mar_filter=mar_tab2,
+            sort_by=sort_tab2,
+        )
+
+        st.caption(f"Visualizzati **{len(prodotti_tab2)}** di **{len(prodotti)}** prodotti")
+
         h_cols = st.columns([1.2, 3, 1.5, 1.5, 1.2, 1, 1], vertical_alignment="center")
         h_cols[0].caption("**SKU**")
         h_cols[1].caption("**Descrizione**")
@@ -923,7 +1175,7 @@ with tab_prodotti:
         h_cols[5].caption("**Modifica**")
         h_cols[6].caption("**Elimina**")
 
-        for p in prodotti:
+        for p in prodotti_tab2:
             p_id = str(p["id"])
             sku_display = f"`{p['sku']}`" if p.get("sku") else "—"
             mio_url_val = (p.get("mio_url") or "").strip()
@@ -1146,18 +1398,80 @@ with tab_competitor:
     else:
         comp_by_id = {str(c["id"]): c for c in competitors}
         comp_options = {str(c["id"]): f"{c['nome']} ({c.get('dominio', '')})" for c in competitors}
-        selected_comp_id = str(
-            st.selectbox(
-                "Seleziona Competitor",
-                options=list(comp_options.keys()),
-                format_func=lambda cid: comp_options[str(cid)],
-                key="sel_competitor_matrix",
-            )
+
+        cat_opts_tab3 = ["Tutte"] + sorted(
+            {
+                (p.get("categoria") or "Generale").strip() or "Generale"
+                for p in prodotti
+            },
+            key=lambda s: s.lower(),
         )
+        mar_opts_tab3 = ["Tutti"] + sorted(
+            {
+                (p.get("marchio") or "Generico").strip() or "Generico"
+                for p in prodotti
+            },
+            key=lambda s: s.lower(),
+        )
+        sort_opts_tab3 = [
+            "Nome (Descrizione A-Z)",
+            "Nome (Z-A)",
+            "Categoria",
+            "Marchio",
+            "SKU",
+            "Prezzo (Crescente)",
+            "Prezzo (Decrescente)",
+        ]
+
+        with st.container(border=True):
+            ctrl_c1, ctrl_c2, ctrl_c3, ctrl_c4, ctrl_c5 = st.columns([1.5, 1.3, 1.0, 1.0, 1.4])
+            with ctrl_c1:
+                selected_comp_id = str(
+                    st.selectbox(
+                        "Seleziona Competitor",
+                        options=list(comp_options.keys()),
+                        format_func=lambda cid: comp_options[str(cid)],
+                        key="sel_competitor_matrix",
+                    )
+                )
+            with ctrl_c2:
+                search_tab3 = st.text_input(
+                    "Cerca prodotto o SKU",
+                    placeholder="Filtra prodotti...",
+                    key="txt_search_prod_tab3",
+                )
+            with ctrl_c3:
+                cat_tab3 = st.selectbox(
+                    "Categoria",
+                    options=cat_opts_tab3,
+                    key="sel_cat_prod_tab3",
+                )
+            with ctrl_c4:
+                mar_tab3 = st.selectbox(
+                    "Marchio",
+                    options=mar_opts_tab3,
+                    key="sel_mar_prod_tab3",
+                )
+            with ctrl_c5:
+                sort_tab3 = st.selectbox(
+                    "Ordina per:",
+                    options=sort_opts_tab3,
+                    key="sel_sort_prod_tab3",
+                )
+
         selected_comp_obj = comp_by_id[selected_comp_id]
+        prodotti_tab3 = filtra_e_ordina_prodotti(
+            prodotti,
+            search_query=search_tab3,
+            cat_filter=cat_tab3,
+            mar_filter=mar_tab3,
+            sort_by=sort_tab3,
+        )
+
+        st.caption(f"Visualizzati **{len(prodotti_tab3)}** di **{len(prodotti)}** prodotti")
 
         # Intestazione colonne
-        lh_cols = st.columns([0.9, 2.3, 1.0, 1.3, 1.1, 0.9, 1.4, 1.0], vertical_alignment="center")
+        lh_cols = st.columns([0.9, 2.3, 1.0, 1.3, 1.1, 1.1, 1.3, 1.0], vertical_alignment="center")
         lh_cols[0].caption("**SKU**")
         lh_cols[1].caption("**Descrizione**")
         lh_cols[2].caption("**Mio Prezzo (€)**")
@@ -1167,10 +1481,12 @@ with tab_competitor:
         lh_cols[6].caption("**Evoluzione (vs prec.)**")
         lh_cols[7].caption("**Azione**")
 
-        for p in prodotti:
+        for p in prodotti_tab3:
             p_id = str(p["id"])
             sku_disp = f"`{p['sku']}`" if p.get("sku") else "—"
             desc_disp = p.get("descrizione", "")
+            cat_disp = p.get("categoria") or "Generale"
+            mar_disp = p.get("marchio") or "Generico"
             mio_p = float(p.get("mio_prezzo") or 0.0)
 
             rec = assoc_map.get((p_id, selected_comp_id), {})
@@ -1186,13 +1502,25 @@ with tab_competitor:
                 else None
             )
             diff_pct = calcola_diff_pct(mio_p, comp_p)
+            evol_txt_row = format_evoluzione_text(comp_p, comp_prev_p)
+            if evol_txt_row.startswith("▲"):
+                sym_inline = '<span style="color:#FB923C; font-weight:700; margin-left:4px;">▲</span>'
+            elif evol_txt_row.startswith("▼"):
+                sym_inline = '<span style="color:#38BDF8; font-weight:700; margin-left:4px;">▼</span>'
+            elif diff_pct is not None:
+                sym_inline = '<span style="color:#94A3B8; font-weight:600; margin-left:4px;">=</span>'
+            else:
+                sym_inline = ""
 
             with st.container(border=True):
                 lr_cols = st.columns(
-                    [0.9, 2.3, 1.0, 1.3, 1.1, 0.9, 1.4, 1.0], vertical_alignment="center"
+                    [0.9, 2.3, 1.0, 1.3, 1.1, 1.1, 1.3, 1.0], vertical_alignment="center"
                 )
                 lr_cols[0].markdown(sku_disp)
-                lr_cols[1].markdown(f"**{desc_disp}**")
+                lr_cols[1].markdown(
+                    f"**{desc_disp}**<br><span style='color:#94A3B8;font-size:0.78rem;'>{cat_disp} • {mar_disp}</span>",
+                    unsafe_allow_html=True,
+                )
                 lr_cols[2].markdown(f"€ {mio_p:.2f}")
 
                 if comp_url:
@@ -1205,7 +1533,10 @@ with tab_competitor:
                 else:
                     lr_cols[4].caption("N/D")
 
-                lr_cols[5].markdown(badge_diff_html(diff_pct), unsafe_allow_html=True)
+                lr_cols[5].markdown(
+                    f"{badge_diff_html(diff_pct)}{sym_inline}",
+                    unsafe_allow_html=True,
+                )
                 lr_cols[6].markdown(
                     badge_evoluzione_html(comp_p, comp_prev_p), unsafe_allow_html=True
                 )
