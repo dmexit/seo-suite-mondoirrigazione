@@ -70,3 +70,7 @@ Applicazione web multi-pagina in **Python + Streamlit** collegata a **Supabase (
    - Per il calcolo posizioni SEO e Top 5 SERP, considerare **solo risultati organici puri** (`organic` di Serper.dev) e decodificare sempre eventuali URL Google Merchant (`google.com/goto?url=CAES...`) tramite `unwrap_google_url()`.
 4. **Regola di Avanzamento Prezzi / Posizioni Precedenti:**
    - Prima di sovrascrivere `ultimo_prezzo` o `mia_posizione_attuale`, copiare il valore precedente in `prezzo_precedente` / `mia_posizione_precedente` (alla primissima rilevazione, se il precedente è `NULL`, inizializzarlo uguale al valore attuale così l'evoluzione iniziale parte da `= Stabile` / `0`).
+5. **REGOLA FERREA DI SICUREZZA SUGLI URL PRODOTTO (HARD-LOCK):**
+   - **MAI cercare o modificare URL prodotti durante gli aggiornamenti prezzi o nei cron job automatici.**
+   - Qualsiasi funzione di aggiornamento prezzi (`esegui_auto_discovery_e_scraping` in `scraper.py`, `esegui_aggiornamento_globale_veloce` in `mailer.py`, `cron_report.py`) ha `cerca_link_mancanti=False` come impostazione predefinita assoluta: se `mio_url` o `url_prodotto` è vuoto viene saltato immediatamente senza chiamare Serper.dev, DuckDuckGo o Gemini; se è presente viene letto esclusivamente il prezzo.
+   - Anche quando `cerca_link_mancanti=True` viene invocato manualmente dagli Strumenti Avanzati (dietro checkbox di conferma obbligatoria in `views/prezzi.py`), **se nel database il campo URL contiene già una stringa non vuota è categoricamente vietato sovrascriverlo**.

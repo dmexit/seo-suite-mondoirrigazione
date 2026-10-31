@@ -16,6 +16,6 @@ Leggi sempre `CONTEXT.md` nella root del progetto come riferimento architettural
 - **Thread-Safety**: Nei worker di `ThreadPoolExecutor` (`scraper.py`) non chiamare mai funzioni `st.*` né leggere `st.session_state`. Aggiorna `st.progress` e salva su Supabase step-by-step solo nel thread principale (`for future in done:`).
 - **Scraping & SERP**:
   - Usa `curl_cffi` con `impersonate="chrome120"` e timeout rigorosi (`5s` prezzi, `10s` backlink) + fallback `requests`.
-  - Non ricercare mai un URL prodotto se `mio_url` o `url_prodotto` è già salvato a database (salvo quando `mio_prezzo == 0` in modalità discovery).
+  - **REGOLA FERREA URL (HARD-LOCK)**: MAI cercare o modificare URL prodotti durante gli aggiornamenti prezzi o nei cron job automatici (`cerca_link_mancanti=False` di default assoluto). Se un campo URL (`mio_url` o `url_prodotto`) nel DB contiene già una stringa non vuota, è categoricamente vietato sovrascriverlo anche quando `cerca_link_mancanti=True`.
   - Usa `unwrap_google_url()` per decodificare eventuali URL `google.com/goto?url=CAES...` nelle SERP di Serper.dev.
 

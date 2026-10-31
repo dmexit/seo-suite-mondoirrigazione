@@ -962,64 +962,78 @@ with tab_prodotti:
 # TAB 3: GESTIONE COMPETITOR & LINK
 # -------------------------------------------------------------------------
 with tab_competitor:
-    # Pulsante Auto-Discovery AI + Aggiornamento Prezzi in evidenza
+    # Pulsante Principale Sicuro: Aggiorna Solo Prezzi (Dai Link Esistenti)
     with st.container(border=True):
-        st.markdown("#### :material/travel_explore: Auto-Discovery AI & Aggiornamento Prezzi")
+        st.markdown("#### :material/sync: Aggiornamento Prezzi (Dai Link Esistenti)")
         st.caption(
-            "Usa **Aggiorna Solo Prezzi ( Veloce )** per rileggere in parallelo i prezzi dai link già salvati, "
-            "oppure **Cerca Link Mancanti + Aggiorna Prezzi** per trovare automaticamente con Serper/AI i link ancora vuoti."
+            "Rilegge in parallelo i prezzi esclusivamente dagli URL già presenti a database (`mio_url` e `url_prodotto`), "
+            "senza cercare link mancanti e senza modificare mai gli URL esistenti."
         )
-        btn_col1, btn_col2 = st.columns(2)
-        with btn_col1:
-            run_prices_only = st.button(
-                "Aggiorna Solo Prezzi ( Veloce )",
-                icon=":material/sync:",
-                type="primary",
-                use_container_width=True,
-                key="btn_tab3_prices_only",
-            )
-        with btn_col2:
-            run_autodiscovery = st.button(
-                "Cerca Link Mancanti + Aggiorna Prezzi",
-                icon=":material/travel_explore:",
-                type="secondary",
-                use_container_width=True,
-                key="btn_tab3_autodiscovery",
-            )
+        run_prices_only = st.button(
+            "Aggiorna Solo Prezzi (Dai Link Esistenti)",
+            icon=":material/sync:",
+            type="primary",
+            use_container_width=True,
+            key="btn_tab3_prices_only",
+        )
 
-        if run_autodiscovery or run_prices_only:
-            discover_mode = bool(run_autodiscovery)
-            prog_bar = st.progress(
-                0.0,
-                text=(
-                    "Avvio ricerca link mancanti e lettura prezzi..."
-                    if discover_mode
-                    else "Lettura prezzi dai link salvati..."
-                ),
+    # Strumenti Avanzati: Ricerca Automatica Link Mancanti isolata in expander chiuso con conferma obbligatoria
+    with st.expander(
+        ":material/warning: Strumenti Avanzati: Ricerca Automatica Link Mancanti (Usa con cautela)",
+        expanded=False,
+    ):
+        st.caption(
+            "Cerca automaticamente con Serper.dev / AI solo gli URL ancora lasciati completamente vuoti nel database. "
+            "Gli URL già inseriti non vengono mai sovrascritti."
+        )
+        confirm_autodiscovery = st.checkbox(
+            "Confermo di voler cercare automaticamente gli URL lasciati vuoti",
+            value=False,
+            key="chk_confirm_autodiscovery",
+        )
+        run_autodiscovery = st.button(
+            "Cerca Link Mancanti + Aggiorna Prezzi",
+            icon=":material/travel_explore:",
+            type="secondary",
+            disabled=not confirm_autodiscovery,
+            use_container_width=True,
+            key="btn_tab3_autodiscovery",
+        )
+
+    if (run_autodiscovery and confirm_autodiscovery) or run_prices_only:
+        discover_mode = bool(run_autodiscovery and confirm_autodiscovery)
+        prog_bar = st.progress(
+            0.0,
+            text=(
+                "Avvio ricerca link mancanti e lettura prezzi..."
+                if discover_mode
+                else "Lettura prezzi dai link esistenti..."
+            ),
+        )
+
+        def _update_prog(pct: float, msg: str) -> None:
+            prog_bar.progress(pct, text=msg)
+
+        try:
+            stats = esegui_auto_discovery_e_scraping(
+                progress_callback=_update_prog,
+                cerca_link_mancanti=discover_mode,
+                discover_missing_urls=discover_mode,
             )
-
-            def _update_prog(pct: float, msg: str) -> None:
-                prog_bar.progress(pct, text=msg)
-
-            try:
-                stats = esegui_auto_discovery_e_scraping(
-                    progress_callback=_update_prog,
-                    discover_missing_urls=discover_mode,
-                )
-                prog_bar.empty()
-                st.session_state["last_scan_log"] = stats.get("logs", [])
-                st.session_state["last_scan_summary"] = (
-                    f"Nuovi URL trovati: {stats['miei_url_trovati'] + stats['comp_url_trovati']} • "
-                    f"Prezzi rilevati: {stats['miei_prezzi_aggiornati'] + stats['comp_prezzi_aggiornati']}"
-                )
-                st.toast(
-                    f"Completato! {st.session_state['last_scan_summary']}",
-                    icon=":material/check_circle:",
-                )
-                st.rerun()
-            except Exception as exc:
-                prog_bar.empty()
-                st.error(f"Errore durante l'aggiornamento: {exc}", icon=":material/error:")
+            prog_bar.empty()
+            st.session_state["last_scan_log"] = stats.get("logs", [])
+            st.session_state["last_scan_summary"] = (
+                f"Nuovi URL trovati: {stats['miei_url_trovati'] + stats['comp_url_trovati']} • "
+                f"Prezzi rilevati: {stats['miei_prezzi_aggiornati'] + stats['comp_prezzi_aggiornati']}"
+            )
+            st.toast(
+                f"Completato! {st.session_state['last_scan_summary']}",
+                icon=":material/check_circle:",
+            )
+            st.rerun()
+        except Exception as exc:
+            prog_bar.empty()
+            st.error(f"Errore durante l'aggiornamento: {exc}", icon=":material/error:")
 
     if st.session_state.get("last_scan_log"):
         with st.expander(":material/receipt_long: Risultati scansione", expanded=True):

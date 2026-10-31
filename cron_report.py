@@ -12,6 +12,8 @@ Logica di frequenza intelligente:
   * `settimanale` e oggi NON è lunedì (`datetime.now().weekday() != 0`):
     stampa "Frequenza settimanale: oggi non è lunedì, eseguito solo keep-alive DB." e termina.
   * `giornaliero` oppure lunedì (per `settimanale`): esegue `esegui_aggiornamento_globale_veloce()`
+    (che legge ESCLUSIVAMENTE i prezzi dai link già salvati con `cerca_link_mancanti=False`
+    ignorando i link vuoti, aggiorna le posizioni SEO e verifica lo stato di Backlink e Menzioni)
     e poi `invia_email_report()`.
 """
 

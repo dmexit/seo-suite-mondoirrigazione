@@ -870,6 +870,9 @@ def _worker_task(task: Dict[str, Any]) -> Dict[str, Any]:
     """
     Worker eseguito nei thread secondari.
     Non chiama mai funzioni st.* né accede a st.session_state.
+    HARD-LOCK:
+    - Se `existing_url` è già presente (non vuoto), NON viene MAI sovrascritto né cercato un URL alternativo.
+    - Se `cerca_link_mancanti=False` e `existing_url` è vuoto (o non inizia con http), salta immediatamente.
     """
     task_type = task["task_type"]
     p_id = task["prodotto_id"]
@@ -878,39 +881,74 @@ def _worker_task(task: Dict[str, Any]) -> Dict[str, Any]:
     marchio = task.get("marchio") or ""
     dominio = (task.get("dominio") or "").strip()
     existing_url = (task.get("existing_url") or "").strip()
-    discover_missing = bool(task.get("discover_missing_urls", True))
+    cerca_link = bool(
+        task.get(
+            "cerca_link_mancanti",
+            task.get("discover_missing_urls", False),
+        )
+    )
 
     url_finale = existing_url
     found_new_url = False
 
-    # Salta la ricerca URL se il link è già salvato; cerca se mancante
-    if not url_finale and dominio and discover_missing:
+    # HARD-LOCK:
+    # 1) Se nel DB c'è già una stringa non vuota, è VIETATO sovrascriverla o cercare alternative
+    if existing_url:
+        if not existing_url.lower().startswith(("http://", "https://")):
+            return {
+                "task_type": task_type,
+                "prodotto_id": p_id,
+                "competitor_id": task.get("competitor_id"),
+                "comp_nome": task.get("comp_nome"),
+                "descrizione": desc,
+                "dominio": dominio,
+                "url_trovato": existing_url,
+                "found_new_url": False,
+                "prezzo": None,
+                "old_price": task.get("old_price"),
+                "old_prev": task.get("old_prev"),
+            }
+        scraped_price = estrai_prezzo_da_url(existing_url, desc)
+        return {
+            "task_type": task_type,
+            "prodotto_id": p_id,
+            "competitor_id": task.get("competitor_id"),
+            "comp_nome": task.get("comp_nome"),
+            "descrizione": desc,
+            "dominio": dominio,
+            "url_trovato": existing_url,
+            "found_new_url": False,
+            "prezzo": round(float(scraped_price), 2) if scraped_price and scraped_price > 0 else None,
+            "old_price": task.get("old_price"),
+            "old_prev": task.get("old_prev"),
+        }
+
+    # 2) Se existing_url è vuoto e cerca_link_mancanti è False -> SALTA IMMEDIATAMENTE
+    if not cerca_link:
+        return {
+            "task_type": task_type,
+            "prodotto_id": p_id,
+            "competitor_id": task.get("competitor_id"),
+            "comp_nome": task.get("comp_nome"),
+            "descrizione": desc,
+            "dominio": dominio,
+            "url_trovato": None,
+            "found_new_url": False,
+            "prezzo": None,
+            "old_price": task.get("old_price"),
+            "old_prev": task.get("old_prev"),
+        }
+
+    # 3) Solo se existing_url è completamente vuoto E cerca_link_mancanti=True è stato richiesto esplicitamente
+    if dominio:
         found = trova_url_prodotto(dominio, sku, desc, marchio)
         if found:
             url_finale = found
             found_new_url = True
 
     scraped_price = None
-    if url_finale:
+    if url_finale and url_finale.lower().startswith(("http://", "https://")):
         scraped_price = estrai_prezzo_da_url(url_finale, desc)
-
-    # Se è un nostro prodotto con mio_prezzo == 0 e l'eventuale URL esistente non ha restituito prezzo,
-    # in modalità discover_missing cerca comunque l'URL aggiornato sul nostro sito ed estrae il prezzo
-    if (
-        task_type == "mio"
-        and (scraped_price is None or scraped_price <= 0)
-        and float(task.get("old_price") or 0.0) <= 0.0
-        and existing_url
-        and dominio
-        and discover_missing
-    ):
-        alt_found = trova_url_prodotto(dominio, sku, desc, marchio)
-        if alt_found and alt_found != url_finale:
-            alt_price = estrai_prezzo_da_url(alt_found, desc)
-            if alt_price is not None and alt_price > 0:
-                url_finale = alt_found
-                found_new_url = True
-                scraped_price = alt_price
 
     return {
         "task_type": task_type,
@@ -929,15 +967,26 @@ def _worker_task(task: Dict[str, Any]) -> Dict[str, Any]:
 
 def esegui_auto_discovery_e_scraping(
     progress_callback: Optional[Callable[[float, str], None]] = None,
-    discover_missing_urls: bool = True,
+    cerca_link_mancanti: bool = False,
+    discover_missing_urls: Optional[bool] = None,
 ) -> Dict[str, Any]:
     """
     Esegue in parallelo (ThreadPoolExecutor max_workers=6) con:
+    - HARD-LOCK: `cerca_link_mancanti=False` di default assoluto.
+      * Quando `cerca_link_mancanti=False`: legge SOLO i link già presenti che iniziano con `http`,
+        estrae SOLO il prezzo e salta immediatamente qualsiasi link vuoto senza mai chiamare Serper/DDG/Gemini.
+      * Anche quando `cerca_link_mancanti=True`: se un campo URL nel DB contiene già una stringa non vuota,
+        è VIETATO sovrascriverlo.
     - Salvataggio IMMEDIATO step-by-step su Supabase appena ogni singolo task termina.
-    - Controllo di tempo massimo per singolo step (max 8 secondi) e shutdown non bloccante
-      così nessun sito lento può mai bloccare la barra di avanzamento.
+    - Controllo di tempo massimo per singolo step (max 8 secondi) e shutdown non bloccante.
     """
     load_dotenv(override=True)
+
+    should_discover = (
+        bool(cerca_link_mancanti)
+        if discover_missing_urls is None
+        else bool(discover_missing_urls)
+    )
 
     from db import (
         get_competitors_prezzi,
@@ -977,23 +1026,46 @@ def esegui_auto_discovery_e_scraping(
         mio_url = (prod.get("mio_url") or "").strip()
         mio_prezzo_attuale = round(float(prod.get("mio_prezzo") or 0.0), 2)
 
-        if mio_url or (mio_sito and discover_missing_urls):
-            tasks.append(
-                {
-                    "task_type": "mio",
-                    "prodotto_id": p_id,
-                    "competitor_id": None,
-                    "comp_nome": "Nostro Sito",
-                    "sku": sku,
-                    "descrizione": desc,
-                    "marchio": marchio,
-                    "dominio": mio_sito,
-                    "existing_url": mio_url,
-                    "old_price": mio_prezzo_attuale,
-                    "old_prev": None,
-                    "discover_missing_urls": discover_missing_urls,
-                }
-            )
+        if should_discover:
+            # In modalità ricerca link mancanti: processa se ha già un URL http oppure se è completamente vuoto
+            if mio_url.lower().startswith(("http://", "https://")) or (not mio_url and mio_sito):
+                tasks.append(
+                    {
+                        "task_type": "mio",
+                        "prodotto_id": p_id,
+                        "competitor_id": None,
+                        "comp_nome": "Nostro Sito",
+                        "sku": sku,
+                        "descrizione": desc,
+                        "marchio": marchio,
+                        "dominio": mio_sito,
+                        "existing_url": mio_url,
+                        "old_price": mio_prezzo_attuale,
+                        "old_prev": None,
+                        "cerca_link_mancanti": True,
+                        "discover_missing_urls": True,
+                    }
+                )
+        else:
+            # HARD-LOCK (cerca_link_mancanti=False): se mio_url è vuoto o non inizia con http, SALTALO IMMEDIATAMENTE
+            if mio_url.lower().startswith(("http://", "https://")):
+                tasks.append(
+                    {
+                        "task_type": "mio",
+                        "prodotto_id": p_id,
+                        "competitor_id": None,
+                        "comp_nome": "Nostro Sito",
+                        "sku": sku,
+                        "descrizione": desc,
+                        "marchio": marchio,
+                        "dominio": mio_sito,
+                        "existing_url": mio_url,
+                        "old_price": mio_prezzo_attuale,
+                        "old_prev": None,
+                        "cerca_link_mancanti": False,
+                        "discover_missing_urls": False,
+                    }
+                )
 
         for comp in competitors:
             c_id = str(comp["id"])
@@ -1012,23 +1084,45 @@ def esegui_auto_discovery_e_scraping(
                 else None
             )
 
-            if comp_url or (c_dominio and discover_missing_urls):
-                tasks.append(
-                    {
-                        "task_type": "comp",
-                        "prodotto_id": p_id,
-                        "competitor_id": c_id,
-                        "comp_nome": c_nome,
-                        "sku": sku,
-                        "descrizione": desc,
-                        "marchio": marchio,
-                        "dominio": c_dominio,
-                        "existing_url": comp_url,
-                        "old_price": old_price,
-                        "old_prev": old_prev,
-                        "discover_missing_urls": discover_missing_urls,
-                    }
-                )
+            if should_discover:
+                if comp_url.lower().startswith(("http://", "https://")) or (not comp_url and c_dominio):
+                    tasks.append(
+                        {
+                            "task_type": "comp",
+                            "prodotto_id": p_id,
+                            "competitor_id": c_id,
+                            "comp_nome": c_nome,
+                            "sku": sku,
+                            "descrizione": desc,
+                            "marchio": marchio,
+                            "dominio": c_dominio,
+                            "existing_url": comp_url,
+                            "old_price": old_price,
+                            "old_prev": old_prev,
+                            "cerca_link_mancanti": True,
+                            "discover_missing_urls": True,
+                        }
+                    )
+            else:
+                # HARD-LOCK (cerca_link_mancanti=False): se url_prodotto è vuoto o non inizia con http, SALTALO IMMEDIATAMENTE
+                if comp_url.lower().startswith(("http://", "https://")):
+                    tasks.append(
+                        {
+                            "task_type": "comp",
+                            "prodotto_id": p_id,
+                            "competitor_id": c_id,
+                            "comp_nome": c_nome,
+                            "sku": sku,
+                            "descrizione": desc,
+                            "marchio": marchio,
+                            "dominio": c_dominio,
+                            "existing_url": comp_url,
+                            "old_price": old_price,
+                            "old_prev": old_prev,
+                            "cerca_link_mancanti": False,
+                            "discover_missing_urls": False,
+                        }
+                    )
 
     total_tasks = len(tasks)
     if total_tasks == 0:
@@ -1095,10 +1189,10 @@ def esegui_auto_discovery_e_scraping(
                 if res["task_type"] == "mio":
                     prod_updates: Dict[str, Any] = {}
                     existing_mio_url = (t_info.get("existing_url") or "").strip()
-                    if url_trovato and (found_new or not existing_mio_url or url_trovato != existing_mio_url):
+                    # HARD-LOCK: salva mio_url SOLO se nel DB era vuoto e should_discover=True ha trovato un nuovo URL
+                    if not existing_mio_url and should_discover and found_new and url_trovato:
                         prod_updates["mio_url"] = url_trovato
-                        if found_new or not existing_mio_url:
-                            stats["miei_url_trovati"] += 1
+                        stats["miei_url_trovati"] += 1
                     if scraped_price is not None and scraped_price > 0:
                         stats["miei_prezzi_aggiornati"] += 1
                         if (
@@ -1117,15 +1211,16 @@ def esegui_auto_discovery_e_scraping(
                                 f":material/error: **[Nostro Sito]** {desc} -> Errore DB: {exc}"
                             )
 
-                    if url_trovato:
+                    url_log = existing_mio_url or url_trovato
+                    if url_log:
                         p_txt = (
                             f"€ {scraped_price:.2f}"
                             if scraped_price is not None
                             else f"€ {old_price:.2f} (invariato)"
                         )
-                        u_lbl = "Nuovo URL trovato" if found_new else "URL salvato"
+                        u_lbl = "Nuovo URL trovato" if (not existing_mio_url and found_new) else "URL salvato"
                         logs.append(
-                            f":material/check_circle: **[Nostro Sito]** {desc} -> [{u_lbl}]({url_trovato}) | Prezzo: **{p_txt}**"
+                            f":material/check_circle: **[Nostro Sito]** {desc} -> [{u_lbl}]({url_log}) | Prezzo: **{p_txt}**"
                         )
                     else:
                         logs.append(
@@ -1135,7 +1230,10 @@ def esegui_auto_discovery_e_scraping(
                 else:
                     c_id = res["competitor_id"]
                     c_nome = res["comp_nome"]
-                    if found_new and url_trovato:
+                    existing_comp_url = (t_info.get("existing_url") or "").strip()
+                    # HARD-LOCK: se existing_comp_url è già presente a DB, è VIETATO modificarlo
+                    url_to_persist = existing_comp_url if existing_comp_url else (url_trovato if should_discover else None)
+                    if not existing_comp_url and should_discover and found_new and url_trovato:
                         stats["comp_url_trovati"] += 1
                     if scraped_price is not None:
                         stats["comp_prezzi_aggiornati"] += 1
@@ -1143,7 +1241,7 @@ def esegui_auto_discovery_e_scraping(
                     final_price = scraped_price if scraped_price is not None else old_price
 
                     # Salvataggio IMMEDIATO step-by-step su Supabase per il singolo prodotto/competitor
-                    if url_trovato or final_price is not None:
+                    if url_to_persist or final_price is not None:
                         prev_to_save = (
                             old_price
                             if (final_price != old_price and old_price is not None)
@@ -1155,7 +1253,7 @@ def esegui_auto_discovery_e_scraping(
                                     {
                                         "prodotto_id": p_id,
                                         "competitor_id": c_id,
-                                        "url_prodotto": url_trovato,
+                                        "url_prodotto": url_to_persist,
                                         "ultimo_prezzo": final_price,
                                         "prezzo_precedente": prev_to_save,
                                     }
@@ -1168,10 +1266,10 @@ def esegui_auto_discovery_e_scraping(
                             )
                             continue
 
-                        u_lbl = "Nuovo URL trovato" if found_new else "Da URL salvato"
+                        u_lbl = "Nuovo URL trovato" if (not existing_comp_url and found_new) else "Da URL salvato"
                         if scraped_price is not None:
                             logs.append(
-                                f":material/check_circle: **[{c_nome}]** {desc} -> [{u_lbl}]({url_trovato}) | Prezzo: **€ {scraped_price:.2f}**"
+                                f":material/check_circle: **[{c_nome}]** {desc} -> [{u_lbl}]({url_to_persist}) | Prezzo: **€ {scraped_price:.2f}**"
                             )
                         else:
                             logs.append(

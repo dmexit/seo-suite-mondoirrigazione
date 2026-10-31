@@ -37,12 +37,12 @@ def esegui_aggiornamento_globale_veloce(
 ) -> Dict[str, Any]:
     """
     Esegue in sequenza (usando i worker multi-thread di `scraper.py`):
-    a) Aggiornamento Solo Prezzi (Veloce): aggiorna in parallelo `mio_prezzo` (da `mio_url`)
+    a) Aggiornamento Solo Prezzi (Dai Link Esistenti): aggiorna in parallelo `mio_prezzo` (da `mio_url`)
        e `ultimo_prezzo` dei competitor (da `url_prodotto`) SOLO per gli URL già salvati,
-       saltando completamente la ricerca di link mancanti (`discover_missing_urls=False`).
+       saltando completamente la ricerca di link mancanti (`cerca_link_mancanti=False`).
     b) Aggiornamento Posizionamenti SEO: aggiorna posizioni SERP (nostro sito + competitor SEO + Top 5)
        per tutte le keyword in `seo_keywords`.
-    c) Verifica Backlink: controlla tutti i backlink in `backlinks`.
+    c) Verifica Backlink e Menzioni: controlla tutti i backlink in `backlinks`.
     """
     load_dotenv(override=True)
 
@@ -69,6 +69,7 @@ def esegui_aggiornamento_globale_veloce(
 
     stats_prezzi = esegui_auto_discovery_e_scraping(
         progress_callback=_cb_prezzi,
+        cerca_link_mancanti=False,
         discover_missing_urls=False,
     )
 
