@@ -433,10 +433,10 @@ def format_evoluzione_text(
     prezzo_precedente: Optional[float],
 ) -> str:
     """
-    Confronta `ultimo_prezzo` con `prezzo_precedente`:
-    - Aumento: `▲ +€ X.XX (+Y.Y%)`
-    - Diminuzione: `▼ -€ X.XX (-Y.Y%)`
-    - Uguale o `prezzo_precedente` None: `= Stabile`
+    Confronta `ultimo_prezzo` con `prezzo_precedente` in percentuale:
+    - Aumento: `▲ +X.X%`
+    - Diminuzione: `▼ -X.X%`
+    - Uguale o `prezzo_precedente` non disponibile: `=`
     """
     try:
         if ultimo_prezzo is None or pd.isna(ultimo_prezzo) or float(ultimo_prezzo) <= 0:
@@ -447,24 +447,26 @@ def format_evoluzione_text(
             or pd.isna(prezzo_precedente)
             or float(prezzo_precedente) <= 0
         ):
-            return "= Stabile"
+            return "="
         prev = round(float(prezzo_precedente), 2)
         delta = round(curr - prev, 2)
         if abs(delta) < 0.01:
-            return "= Stabile"
+            return "="
         pct = ((curr - prev) / prev) * 100.0
-        if delta > 0:
-            return f"▲ +€ {delta:.2f} (+{pct:.1f}%)"
-        return f"▼ -€ {abs(delta):.2f} ({pct:.1f}%)"
+        if abs(pct) < 0.05:
+            return "="
+        if pct > 0:
+            return f"▲ +{pct:.1f}%"
+        return f"▼ {pct:.1f}%"
     except (ValueError, TypeError):
-        return "= Stabile"
+        return "="
 
 
 def badge_evoluzione_html(
     ultimo_prezzo: Optional[float],
     prezzo_precedente: Optional[float],
 ) -> str:
-    """Restituisce un badge HTML colorato per l'evoluzione rispetto alla rilevazione precedente."""
+    """Restituisce un badge HTML colorato per l'evoluzione in percentuale rispetto alla rilevazione precedente."""
     txt = format_evoluzione_text(ultimo_prezzo, prezzo_precedente)
     if txt == "N/D":
         return '<span style="color:#94A3B8; font-size:0.84rem;">N/D</span>'
@@ -482,58 +484,61 @@ def badge_evoluzione_html(
         )
     return (
         '<span style="color:#94A3B8; background:rgba(148,163,184,0.12); '
-        'padding:2px 8px; border-radius:6px; font-weight:600; font-size:0.82rem;">= Stabile</span>'
+        'padding:2px 8px; border-radius:6px; font-weight:600; font-size:0.82rem;">=</span>'
     )
 
 
 def badge_evoluzione_inline_short_html(
-    ultimo_prezzo: Optional[float],
-    prezzo_precedente: Optional[float],
+    media_var_pct_or_curr: Optional[float],
+    prezzo_precedente: Optional[float] = None,
 ) -> str:
     """
     Restituisce un badge compatto da affiancare direttamente ad ogni badge di Scostamento %:
-    - `▲ +€ X.XX (+Y.Y%)` (rosso/arancio) se il prezzo competitor è salito rispetto a `prezzo_precedente`
-    - `▼ -€ X.XX (-Y.Y%)` (verde/blu) se il prezzo competitor è sceso rispetto a `prezzo_precedente`
-    - `=` (grigio) se invariato
+    - Se abs(var_pct) < 0.05 (o non ci sono variazioni): mostra il badge neutro `=`
+    - Se var_pct > 0: `▲ +{var_pct:.1f}%` (rosso/arancio)
+    - Se var_pct < 0: `▼ {var_pct:.1f}%` (verde/blu)
     """
     try:
-        if ultimo_prezzo is None or pd.isna(ultimo_prezzo) or float(ultimo_prezzo) <= 0:
-            return ""
-        curr = round(float(ultimo_prezzo), 2)
-        if (
-            prezzo_precedente is None
-            or pd.isna(prezzo_precedente)
-            or float(prezzo_precedente) <= 0
-        ):
+        if prezzo_precedente is not None:
+            if media_var_pct_or_curr is None or pd.isna(media_var_pct_or_curr) or float(media_var_pct_or_curr) <= 0:
+                return ""
+            curr = round(float(media_var_pct_or_curr), 2)
+            if pd.isna(prezzo_precedente) or float(prezzo_precedente) <= 0:
+                pct = None
+            else:
+                prev = round(float(prezzo_precedente), 2)
+                pct = ((curr - prev) / prev) * 100.0
+        else:
+            if media_var_pct_or_curr is None or pd.isna(media_var_pct_or_curr):
+                pct = None
+            else:
+                pct = float(media_var_pct_or_curr)
+
+        if pct is None or abs(pct) < 0.05:
             return (
                 '<span title="Invariato rispetto alla rilevazione precedente" '
                 'style="color:#94A3B8; background:rgba(148,163,184,0.12); '
                 'padding:2px 6px; border-radius:5px; font-weight:600; font-size:0.78rem; margin-left:5px;">=</span>'
             )
-        prev = round(float(prezzo_precedente), 2)
-        delta = round(curr - prev, 2)
-        if abs(delta) < 0.01:
-            return (
-                '<span title="Invariato rispetto alla rilevazione precedente" '
-                'style="color:#94A3B8; background:rgba(148,163,184,0.12); '
-                'padding:2px 6px; border-radius:5px; font-weight:600; font-size:0.78rem; margin-left:5px;">=</span>'
-            )
-        pct = ((curr - prev) / prev) * 100.0
-        if delta > 0:
+        if pct > 0:
             return (
                 f'<span title="Prezzo competitor aumentato rispetto alla rilevazione precedente" '
                 f'style="color:#FB923C; background:rgba(251,146,60,0.15); '
                 f'padding:2px 6px; border-radius:5px; font-weight:600; font-size:0.78rem; margin-left:5px;">'
-                f"▲ +€ {delta:.2f} (+{pct:.1f}%)</span>"
+                f"▲ +{pct:.1f}%</span>"
             )
         return (
             f'<span title="Prezzo competitor diminuito rispetto alla rilevazione precedente" '
             f'style="color:#38BDF8; background:rgba(56,189,248,0.15); '
             f'padding:2px 6px; border-radius:5px; font-weight:600; font-size:0.78rem; margin-left:5px;">'
-            f"▼ -€ {abs(delta):.2f} ({pct:.1f}%)</span>"
+            f"▼ {pct:.1f}%</span>"
         )
     except (ValueError, TypeError):
-        return ""
+        return (
+            '<span title="Invariato rispetto alla rilevazione precedente" '
+            'style="color:#94A3B8; background:rgba(148,163,184,0.12); '
+            'padding:2px 6px; border-radius:5px; font-weight:600; font-size:0.78rem; margin-left:5px;">=</span>'
+        )
 
 
 def filtra_e_ordina_prodotti(
@@ -643,8 +648,7 @@ def render_summary_grid(
                         c_id = str(comp["id"])
                         c_nome = comp["nome"]
                         diffs = []
-                        curr_prices_for_evol = []
-                        prev_prices_for_evol = []
+                        var_pcts = []
                         for p in group_prods:
                             p_id = str(p["id"])
                             mio_p = p.get("mio_prezzo")
@@ -654,30 +658,24 @@ def render_summary_grid(
                             d = calcola_diff_pct(mio_p, comp_p)
                             if d is not None:
                                 diffs.append(d)
-                            if comp_p is not None and float(comp_p) > 0:
+                            if (
+                                comp_p is not None
+                                and float(comp_p) > 0
+                                and comp_prev_p is not None
+                                and float(comp_prev_p) > 0
+                            ):
                                 c_val = float(comp_p)
-                                p_val = (
-                                    float(comp_prev_p)
-                                    if (comp_prev_p is not None and float(comp_prev_p) > 0)
-                                    else c_val
-                                )
-                                curr_prices_for_evol.append(c_val)
-                                prev_prices_for_evol.append(p_val)
+                                p_val = float(comp_prev_p)
+                                var_pct = ((c_val - p_val) / p_val) * 100.0
+                                var_pcts.append(var_pct)
 
                         avg_diff = sum(diffs) / len(diffs) if diffs else None
-                        avg_curr = (
-                            sum(curr_prices_for_evol) / len(curr_prices_for_evol)
-                            if curr_prices_for_evol
-                            else None
-                        )
-                        avg_prev = (
-                            sum(prev_prices_for_evol) / len(prev_prices_for_evol)
-                            if prev_prices_for_evol
-                            else None
+                        media_var_pct = (
+                            sum(var_pcts) / len(var_pcts) if var_pcts else None
                         )
                         badge = badge_diff_html(avg_diff)
                         evol_inline = (
-                            badge_evoluzione_inline_short_html(avg_curr, avg_prev)
+                            badge_evoluzione_inline_short_html(media_var_pct)
                             if avg_diff is not None
                             else ""
                         )

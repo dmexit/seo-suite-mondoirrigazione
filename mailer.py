@@ -140,76 +140,98 @@ def _render_evoluzione_badge_inline(
     prezzo_precedente: Any,
 ) -> str:
     """
-    Confronta `ultimo_prezzo` con `prezzo_precedente`:
-    - Aumento (`ultimo_prezzo > prezzo_precedente`): `▲ +€ X.XX (+Y.Y%)` (rosso/arancio)
-    - Diminuzione (`ultimo_prezzo < prezzo_precedente`): `▼ -€ X.XX (-Y.Y%)` (verde/azzurro)
-    - Uguale o `prezzo_precedente` None: `= Stabile`
+    Confronta `ultimo_prezzo` con `prezzo_precedente` in percentuale:
+    - Aumento: `▲ +X.X%` (rosso/arancio)
+    - Diminuzione: `▼ -X.X%` (verde/azzurro)
+    - Uguale o `prezzo_precedente` non disponibile: `=`
     """
     try:
         if ultimo_prezzo is None or float(ultimo_prezzo) <= 0:
             return '<span style="color:#94a3b8;font-size:12px;">N/D</span>'
         curr = round(float(ultimo_prezzo), 2)
         if prezzo_precedente is None or float(prezzo_precedente) <= 0:
-            return '<span style="color:#64748b;font-size:12px;font-weight:600;">= Stabile</span>'
+            return (
+                '<span style="display:inline-block;padding:3px 8px;border-radius:6px;'
+                'background-color:#f1f5f9;color:#64748b;font-weight:700;font-size:11px;">=</span>'
+            )
         prev = round(float(prezzo_precedente), 2)
         delta = round(curr - prev, 2)
         if abs(delta) < 0.01:
-            return '<span style="color:#64748b;font-size:12px;font-weight:600;">= Stabile</span>'
+            return (
+                '<span style="display:inline-block;padding:3px 8px;border-radius:6px;'
+                'background-color:#f1f5f9;color:#64748b;font-weight:700;font-size:11px;">=</span>'
+            )
         pct = ((curr - prev) / prev) * 100.0
-        if delta > 0:
+        if abs(pct) < 0.05:
+            return (
+                '<span style="display:inline-block;padding:3px 8px;border-radius:6px;'
+                'background-color:#f1f5f9;color:#64748b;font-weight:700;font-size:11px;">=</span>'
+            )
+        if pct > 0:
             return (
                 f'<span style="display:inline-block;padding:3px 8px;border-radius:6px;'
                 f'background-color:#ffedd5;color:#c2410c;font-weight:700;font-size:11px;">'
-                f"&#9650; +&euro; {delta:.2f} (+{pct:.1f}%)</span>"
+                f"&#9650; +{pct:.1f}%</span>"
             )
         return (
             f'<span style="display:inline-block;padding:3px 8px;border-radius:6px;'
             f'background-color:#e0f2fe;color:#0369a1;font-weight:700;font-size:11px;">'
-            f"&#9660; -&euro; {abs(delta):.2f} ({pct:.1f}%)</span>"
+            f"&#9660; {pct:.1f}%</span>"
         )
     except (ValueError, TypeError):
-        return '<span style="color:#64748b;font-size:12px;font-weight:600;">= Stabile</span>'
+        return (
+            '<span style="display:inline-block;padding:3px 8px;border-radius:6px;'
+            'background-color:#f1f5f9;color:#64748b;font-weight:700;font-size:11px;">=</span>'
+        )
 
 
 def _render_evoluzione_short_inline(
-    ultimo_prezzo: Any,
-    prezzo_precedente: Any,
+    ultimo_o_pct: Any,
+    prezzo_precedente: Any = None,
 ) -> str:
     """
-    Badge compatto di evoluzione mostrato direttamente accanto a ogni Scostamento %:
-    - `▲ +€ X.XX` (rosso/arancio) se il prezzo competitor è salito rispetto a `prezzo_precedente`
-    - `▼ -€ X.XX` (verde/blu) se il prezzo competitor è sceso rispetto a `prezzo_precedente`
-    - `=` (grigio) se invariato
+    Badge compatto di evoluzione in percentuale mostrato direttamente accanto a ogni Scostamento %:
+    - Se abs(media_var_pct) < 0.05 (o non ci sono variazioni): mostra il badge neutro `=`
+    - Se media_var_pct > 0: mostra `▲ +{media_var_pct:.1f}%`
+    - Se media_var_pct < 0: mostra `▼ {media_var_pct:.1f}%` (es. `▼ -1.8%`)
     """
     try:
-        if ultimo_prezzo is None or float(ultimo_prezzo) <= 0:
-            return ""
-        curr = round(float(ultimo_prezzo), 2)
-        if prezzo_precedente is None or float(prezzo_precedente) <= 0:
+        if prezzo_precedente is not None:
+            if ultimo_o_pct is None or float(ultimo_o_pct) <= 0:
+                return ""
+            curr = round(float(ultimo_o_pct), 2)
+            if float(prezzo_precedente) <= 0:
+                pct = None
+            else:
+                prev = round(float(prezzo_precedente), 2)
+                pct = ((curr - prev) / prev) * 100.0
+        else:
+            if ultimo_o_pct is None:
+                pct = None
+            else:
+                pct = float(ultimo_o_pct)
+
+        if pct is None or abs(pct) < 0.05:
             return (
                 '<span style="display:inline-block;margin-left:4px;padding:2px 6px;border-radius:5px;'
                 'background-color:#f1f5f9;color:#64748b;font-weight:700;font-size:11px;">=</span>'
             )
-        prev = round(float(prezzo_precedente), 2)
-        delta = round(curr - prev, 2)
-        if abs(delta) < 0.01:
-            return (
-                '<span style="display:inline-block;margin-left:4px;padding:2px 6px;border-radius:5px;'
-                'background-color:#f1f5f9;color:#64748b;font-weight:700;font-size:11px;">=</span>'
-            )
-        if delta > 0:
+        if pct > 0:
             return (
                 f'<span style="display:inline-block;margin-left:4px;padding:2px 6px;border-radius:5px;'
                 f'background-color:#ffedd5;color:#c2410c;font-weight:700;font-size:11px;">'
-                f"&#9650; +&euro; {delta:.2f}</span>"
+                f"&#9650; +{pct:.1f}%</span>"
             )
         return (
             f'<span style="display:inline-block;margin-left:4px;padding:2px 6px;border-radius:5px;'
             f'background-color:#e0f2fe;color:#0369a1;font-weight:700;font-size:11px;">'
-            f"&#9660; -&euro; {abs(delta):.2f}</span>"
+            f"&#9660; {pct:.1f}%</span>"
         )
     except (ValueError, TypeError):
-        return ""
+        return (
+            '<span style="display:inline-block;margin-left:4px;padding:2px 6px;border-radius:5px;'
+            'background-color:#f1f5f9;color:#64748b;font-weight:700;font-size:11px;">=</span>'
+        )
 
 
 def _render_group_matrix_table(
@@ -249,8 +271,7 @@ def _render_group_matrix_table(
         for c in competitors:
             c_id = str(c["id"])
             diffs: List[float] = []
-            curr_prices: List[float] = []
-            prev_prices: List[float] = []
+            var_pcts: List[float] = []
             for p in g_prods:
                 p_id = str(p["id"])
                 rec = assoc_map.get((p_id, c_id))
@@ -259,20 +280,20 @@ def _render_group_matrix_table(
                 d = _calc_diff_pct(p.get("mio_prezzo"), comp_p)
                 if d is not None:
                     diffs.append(d)
-                if comp_p is not None and float(comp_p) > 0:
+                if (
+                    comp_p is not None
+                    and float(comp_p) > 0
+                    and comp_prev is not None
+                    and float(comp_prev) > 0
+                ):
                     c_val = float(comp_p)
-                    p_val = (
-                        float(comp_prev)
-                        if (comp_prev is not None and float(comp_prev) > 0)
-                        else c_val
-                    )
-                    curr_prices.append(c_val)
-                    prev_prices.append(p_val)
+                    p_val = float(comp_prev)
+                    var_pcts.append(((c_val - p_val) / p_val) * 100.0)
+
             avg_d = (sum(diffs) / len(diffs)) if diffs else None
-            avg_curr = (sum(curr_prices) / len(curr_prices)) if curr_prices else None
-            avg_prev = (sum(prev_prices) / len(prev_prices)) if prev_prices else None
+            media_var_pct = (sum(var_pcts) / len(var_pcts)) if var_pcts else None
             evol_short = (
-                _render_evoluzione_short_inline(avg_curr, avg_prev)
+                _render_evoluzione_short_inline(media_var_pct)
                 if avg_d is not None
                 else ""
             )
