@@ -462,6 +462,29 @@ def format_evoluzione_text(
         return "="
 
 
+def format_diff_con_evoluzione(
+    mio_prezzo: Optional[float],
+    comp_prezzo: Optional[float],
+    comp_prev_prezzo: Optional[float],
+) -> str:
+    """
+    Formatta lo scostamento percentuale seguito tra parentesi dal dato di evoluzione rispetto al prezzo precedente:
+    - Se comp_prezzo o diff non disponibile: '-'
+    - Se stabile o invariato: '+13.3% (=)' o '-6.1% (=)'
+    - Se salito: '+13.3% (▲ +2.4%)'
+    - Se sceso: '+13.3% (▼ -1.8%)'
+    """
+    if comp_prezzo is None or pd.isna(comp_prezzo) or float(comp_prezzo) <= 0:
+        return "-"
+    diff_val = calcola_diff_pct(mio_prezzo, comp_prezzo)
+    if diff_val is None or pd.isna(diff_val):
+        return "-"
+    evol_txt = format_evoluzione_text(comp_prezzo, comp_prev_prezzo)
+    evol_str = evol_txt if evol_txt not in ("N/D", "") else "="
+    diff_sign = "+" if diff_val > 0 else ""
+    return f"{diff_sign}{diff_val:.1f}% ({evol_str})"
+
+
 def badge_evoluzione_html(
     ultimo_prezzo: Optional[float],
     prezzo_precedente: Optional[float],
@@ -740,11 +763,9 @@ def render_detail_table(
 
         rows = []
         diff_columns = []
-        evol_columns = []
 
         for comp in competitors_list:
             diff_columns.append(f"{comp['nome']} Diff %")
-            evol_columns.append(f"{comp['nome']} Evoluzione (vs prec.)")
 
         for p in filtrati:
             p_id = str(p["id"])
@@ -768,20 +789,8 @@ def render_detail_table(
                     if rec and rec.get("prezzo_precedente") is not None
                     else None
                 )
-                diff_val = calcola_diff_pct(mio_p, comp_p)
-                evol_txt = format_evoluzione_text(comp_p, comp_prev_p)
-                if diff_val is not None:
-                    evol_sym = (
-                        "▲"
-                        if evol_txt.startswith("▲")
-                        else ("▼" if evol_txt.startswith("▼") else "=")
-                    )
-                    diff_display = f"{'+' if diff_val > 0 else ''}{diff_val:.1f}%  {evol_sym}"
-                else:
-                    diff_display = "N/D"
                 row[f"{c_nome} (€)"] = comp_p
-                row[f"{c_nome} Diff %"] = diff_display
-                row[f"{c_nome} Evoluzione (vs prec.)"] = evol_txt
+                row[f"{c_nome} Diff %"] = format_diff_con_evoluzione(mio_p, comp_p, comp_prev_p)
 
             rows.append(row)
 
@@ -792,29 +801,21 @@ def render_detail_table(
         }
         for comp in competitors_list:
             c_nome = comp["nome"]
-            format_dict[f"{c_nome} (€)"] = lambda x: f"€ {x:.2f}" if pd.notna(x) else "N/D"
+            format_dict[f"{c_nome} (€)"] = (
+                lambda x: f"€ {x:.2f}" if pd.notna(x) and x is not None else "-"
+            )
 
         def style_diff_cell(val: Any) -> str:
             s = str(val or "").strip()
-            if not s or s == "N/D":
+            if not s or s in ("-", "N/D", "None"):
                 return "color: #94A3B8;"
             if s.startswith("-"):
                 return "color: #F87171; background-color: rgba(248, 113, 113, 0.14); font-weight: 600;"
             return "color: #4ADE80; background-color: rgba(74, 222, 128, 0.14); font-weight: 600;"
 
-        def style_evol_cell(val: Any) -> str:
-            s = str(val or "")
-            if s.startswith("▲"):
-                return "color: #FB923C; background-color: rgba(251, 146, 60, 0.14); font-weight: 600;"
-            if s.startswith("▼"):
-                return "color: #38BDF8; background-color: rgba(56, 189, 248, 0.14); font-weight: 600;"
-            return "color: #94A3B8;"
-
         styled_df = df_det.style.format(format_dict)
         if diff_columns:
             styled_df = styled_df.map(style_diff_cell, subset=diff_columns)
-        if evol_columns:
-            styled_df = styled_df.map(style_evol_cell, subset=evol_columns)
 
         st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
@@ -1469,15 +1470,14 @@ with tab_competitor:
         st.caption(f"Visualizzati **{len(prodotti_tab3)}** di **{len(prodotti)}** prodotti")
 
         # Intestazione colonne
-        lh_cols = st.columns([0.9, 2.3, 1.0, 1.3, 1.1, 1.1, 1.3, 1.0], vertical_alignment="center")
+        lh_cols = st.columns([0.9, 2.5, 1.1, 1.4, 1.1, 1.8, 1.2], vertical_alignment="center")
         lh_cols[0].caption("**SKU**")
         lh_cols[1].caption("**Descrizione**")
         lh_cols[2].caption("**Mio Prezzo (€)**")
         lh_cols[3].caption("**URL Competitor**")
         lh_cols[4].caption("**Prezzo Comp. (€)**")
         lh_cols[5].caption("**Diff. %**")
-        lh_cols[6].caption("**Evoluzione (vs prec.)**")
-        lh_cols[7].caption("**Azione**")
+        lh_cols[6].caption("**Azione**")
 
         for p in prodotti_tab3:
             p_id = str(p["id"])
@@ -1499,20 +1499,25 @@ with tab_competitor:
                 if rec.get("prezzo_precedente") is not None
                 else None
             )
-            diff_pct = calcola_diff_pct(mio_p, comp_p)
-            evol_txt_row = format_evoluzione_text(comp_p, comp_prev_p)
-            if evol_txt_row.startswith("▲"):
-                sym_inline = '<span style="color:#FB923C; font-weight:700; margin-left:4px;">▲</span>'
-            elif evol_txt_row.startswith("▼"):
-                sym_inline = '<span style="color:#38BDF8; font-weight:700; margin-left:4px;">▼</span>'
-            elif diff_pct is not None:
-                sym_inline = '<span style="color:#94A3B8; font-weight:600; margin-left:4px;">=</span>'
+            diff_disp = format_diff_con_evoluzione(mio_p, comp_p, comp_prev_p)
+            if diff_disp == "-":
+                diff_badge_html = '<span style="color:#94A3B8; font-size:0.88rem;">-</span>'
+            elif diff_disp.startswith("-"):
+                diff_badge_html = (
+                    f'<span style="color:#F87171; background:rgba(248,113,113,0.14); '
+                    f'padding:2px 8px; border-radius:6px; font-weight:600; font-size:0.85rem;">'
+                    f'{diff_disp}</span>'
+                )
             else:
-                sym_inline = ""
+                diff_badge_html = (
+                    f'<span style="color:#4ADE80; background:rgba(74,222,128,0.14); '
+                    f'padding:2px 8px; border-radius:6px; font-weight:600; font-size:0.85rem;">'
+                    f'{diff_disp}</span>'
+                )
 
             with st.container(border=True):
                 lr_cols = st.columns(
-                    [0.9, 2.3, 1.0, 1.3, 1.1, 1.1, 1.3, 1.0], vertical_alignment="center"
+                    [0.9, 2.5, 1.1, 1.4, 1.1, 1.8, 1.2], vertical_alignment="center"
                 )
                 lr_cols[0].markdown(sku_disp)
                 lr_cols[1].markdown(
@@ -1529,17 +1534,14 @@ with tab_competitor:
                 if comp_p is not None and comp_p > 0:
                     lr_cols[4].markdown(f"**€ {comp_p:.2f}**")
                 else:
-                    lr_cols[4].caption("N/D")
+                    lr_cols[4].markdown(
+                        "<span style='color:#94A3B8; font-size:0.88rem;'>-</span>",
+                        unsafe_allow_html=True,
+                    )
 
-                lr_cols[5].markdown(
-                    f"{badge_diff_html(diff_pct)}{sym_inline}",
-                    unsafe_allow_html=True,
-                )
-                lr_cols[6].markdown(
-                    badge_evoluzione_html(comp_p, comp_prev_p), unsafe_allow_html=True
-                )
+                lr_cols[5].markdown(diff_badge_html, unsafe_allow_html=True)
 
-                with lr_cols[7]:
+                with lr_cols[6]:
                     if st.button(
                         "Modifica",
                         icon=":material/edit:",
