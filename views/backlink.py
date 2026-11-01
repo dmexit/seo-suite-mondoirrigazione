@@ -35,17 +35,17 @@ def _render_status_pill_html(stato_attivo: Any, checked: bool = True) -> str:
     if bool(stato_attivo):
         return (
             '<span style="display:inline-flex;align-items:center;gap:6px;'
-            "padding:4px 11px;border-radius:999px;background-color:#16a34a;"
-            'color:#ffffff;font-weight:700;font-size:0.78rem;line-height:1.1;">'
-            '<span style="width:7px;height:7px;border-radius:50%;background:#ffffff;display:inline-block;"></span>'
+            "padding:4px 11px;border-radius:999px;background-color:#dcfce7;border:1px solid #bbf7d0;"
+            'color:#15803d;font-weight:700;font-size:0.78rem;line-height:1.1;">'
+            '<span style="width:7px;height:7px;border-radius:50%;background:#15803d;display:inline-block;"></span>'
             "Attivo</span>"
         )
     label_txt = "Non attivo" if checked else "Non attivo (Da verificare)"
     return (
         '<span style="display:inline-flex;align-items:center;gap:6px;'
-        "padding:4px 11px;border-radius:999px;background-color:#dc2626;"
-        'color:#ffffff;font-weight:700;font-size:0.78rem;line-height:1.1;">'
-        '<span style="width:7px;height:7px;border-radius:50%;background:#ffffff;display:inline-block;"></span>'
+        "padding:4px 11px;border-radius:999px;background-color:#fee2e2;border:1px solid #fecaca;"
+        'color:#b91c1c;font-weight:700;font-size:0.78rem;line-height:1.1;">'
+        '<span style="width:7px;height:7px;border-radius:50%;background:#b91c1c;display:inline-block;"></span>'
         f"{label_txt}</span>"
     )
 
@@ -55,7 +55,7 @@ def _render_http_badge_html(http_status: Any) -> str:
     if http_status is None or pd.isna(http_status):
         return (
             '<span style="display:inline-block;padding:3px 8px;border-radius:6px;'
-            'background-color:var(--border-color);color:var(--text-muted);font-weight:700;font-size:0.78rem;">—</span>'
+            'background-color:#f1f5f9;border:1px solid #cbd5e1;color:#334155;font-weight:700;font-size:0.78rem;">—</span>'
         )
     try:
         code = int(float(http_status))
@@ -63,16 +63,16 @@ def _render_http_badge_html(http_status: Any) -> str:
         code = 0
 
     if code == 200:
-        bg, fg = "rgba(22,163,74,0.18)", "#4ade80"
+        bg, fg = "#dcfce7;border:1px solid #bbf7d0", "#15803d"
         txt = "200"
     elif code == 0:
-        bg, fg = "rgba(148,163,184,0.16)", "var(--text-muted)"
+        bg, fg = "#f1f5f9;border:1px solid #cbd5e1", "#334155"
         txt = "N/R"
     elif 300 <= code < 400:
-        bg, fg = "rgba(234,88,12,0.18)", "#fb923c"
+        bg, fg = "#ffedd5;border:1px solid #fed7aa", "#c2410c"
         txt = str(code)
     else:
-        bg, fg = "rgba(220,38,38,0.20)", "#f87171"
+        bg, fg = "#fee2e2;border:1px solid #fecaca", "#b91c1c"
         txt = str(code)
 
     return (
@@ -98,24 +98,24 @@ def _render_rel_badge_html(rel_val: Any) -> str:
     if not rel_clean:
         return (
             '<span style="display:inline-block;padding:3px 8px;border-radius:6px;'
-            'background-color:var(--border-color);color:var(--text-muted);font-weight:600;font-size:0.76rem;">—</span>'
+            'background-color:#f1f5f9;border:1px solid #cbd5e1;color:#334155;font-weight:600;font-size:0.76rem;">—</span>'
         )
 
     if "menzione" in rel_clean:
         return (
             '<span style="display:inline-block;padding:3px 10px;border-radius:999px;'
-            "background-color:rgba(6,182,212,0.22);border:1px solid #06b6d4;color:#22d3ee;"
+            "background-color:#cffafe;border:1px solid #a5f3fc;color:#0e7490;"
             'font-weight:700;font-size:0.75rem;">Menzione (No Link)</span>'
         )
 
     if "dofollow" in rel_clean:
-        bg, fg = "#0284c7", "#ffffff"
+        bg, fg = "#e0f2fe;border:1px solid #bae6fd", "#0369a1"
     elif "nofollow" in rel_clean:
-        bg, fg = "#ea580c", "#ffffff"
+        bg, fg = "#ffedd5;border:1px solid #fed7aa", "#c2410c"
     elif "sponsored" in rel_clean or "ugc" in rel_clean:
-        bg, fg = "#7c3aed", "#ffffff"
+        bg, fg = "#ede9fe;border:1px solid #ddd6fe", "#6d28d9"
     else:
-        bg, fg = "#475569", "#f8fafc"
+        bg, fg = "#f1f5f9;border:1px solid #cbd5e1", "#334155"
 
     return (
         f'<span style="display:inline-block;padding:3px 10px;border-radius:999px;'
@@ -275,35 +275,35 @@ with kpi_cols[0]:
     with st.container(border=True):
         st.caption(":material/link: **Totale Monitorati**")
         st.markdown(
-            f"<div style='font-size:1.65rem;font-weight:800;color:var(--text-main);'>{tot_bl}</div>",
+            f"<div style='font-size:1.65rem;font-weight:800;color:#0f172a;'>{tot_bl}</div>",
             unsafe_allow_html=True,
         )
 with kpi_cols[1]:
     with st.container(border=True):
         st.caption(":material/check_circle: **Link Attivi**")
         st.markdown(
-            f"<div style='font-size:1.65rem;font-weight:800;color:#22c55e;'>{link_attivi_puri}</div>",
+            f"<div style='font-size:1.65rem;font-weight:800;color:#15803d;'>{link_attivi_puri}</div>",
             unsafe_allow_html=True,
         )
 with kpi_cols[2]:
     with st.container(border=True):
         st.caption(":material/record_voice_over: **Menzioni (No Link)**")
         st.markdown(
-            f"<div style='font-size:1.65rem;font-weight:800;color:#22d3ee;'>{menzioni_count}</div>",
+            f"<div style='font-size:1.65rem;font-weight:800;color:#0e7490;'>{menzioni_count}</div>",
             unsafe_allow_html=True,
         )
 with kpi_cols[3]:
     with st.container(border=True):
         st.caption(":material/link_off: **Non Attivi / Persi**")
         st.markdown(
-            f"<div style='font-size:1.65rem;font-weight:800;color:#ef4444;'>{non_attivi_bl}</div>",
+            f"<div style='font-size:1.65rem;font-weight:800;color:#b91c1c;'>{non_attivi_bl}</div>",
             unsafe_allow_html=True,
         )
 with kpi_cols[4]:
     with st.container(border=True):
         st.caption(":material/verified: **Dofollow vs Nofollow**")
         st.markdown(
-            f"<div style='font-size:1.4rem;font-weight:800;color:#38bdf8;'>{rel_ratio_str}</div>",
+            f"<div style='font-size:1.4rem;font-weight:800;color:#0369a1;'>{rel_ratio_str}</div>",
             unsafe_allow_html=True,
         )
 

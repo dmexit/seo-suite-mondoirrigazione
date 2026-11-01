@@ -411,18 +411,18 @@ def calcola_diff_pct(mio_prezzo: Optional[float], comp_prezzo: Optional[float]) 
 def badge_diff_html(diff_val: Optional[float]) -> str:
     """Restituisce un badge HTML minimale con colore semantico per la differenza %."""
     if diff_val is None or pd.isna(diff_val):
-        return '<span style="color:var(--text-muted); font-size:0.88rem;">N/D</span>'
+        return '<span style="color:#64748b; font-size:0.88rem;">N/D</span>'
     segno = "+" if diff_val > 0 else ""
     if diff_val < 0:
         # Competitor più basso del nostro -> Arancio/Rosso
         return (
-            f'<span style="color:#F87171; background:rgba(248,113,113,0.14); '
+            f'<span style="color:#b91c1c; background:#fee2e2; border:1px solid #fecaca; '
             f'padding:2px 8px; border-radius:6px; font-weight:600; font-size:0.88rem;">'
             f"{segno}{diff_val:.1f}%</span>"
         )
     # Competitor uguale o più alto -> Verde
     return (
-        f'<span style="color:#4ADE80; background:rgba(74,222,128,0.14); '
+        f'<span style="color:#15803d; background:#dcfce7; border:1px solid #bbf7d0; '
         f'padding:2px 8px; border-radius:6px; font-weight:600; font-size:0.88rem;">'
         f"{segno}{diff_val:.1f}%</span>"
     )
@@ -492,21 +492,21 @@ def badge_evoluzione_html(
     """Restituisce un badge HTML colorato per l'evoluzione in percentuale rispetto alla rilevazione precedente."""
     txt = format_evoluzione_text(ultimo_prezzo, prezzo_precedente)
     if txt == "N/D":
-        return '<span style="color:var(--text-muted); font-size:0.84rem;">N/D</span>'
+        return '<span style="color:#64748b; font-size:0.84rem;">N/D</span>'
     if txt.startswith("▲"):
         return (
-            f'<span style="color:#FB923C; background:rgba(251,146,60,0.15); '
+            f'<span style="color:#c2410c; background:#ffedd5; border:1px solid #fed7aa; '
             f'padding:2px 8px; border-radius:6px; font-weight:600; font-size:0.82rem;">'
             f"{txt}</span>"
         )
     if txt.startswith("▼"):
         return (
-            f'<span style="color:#38BDF8; background:rgba(56,189,248,0.15); '
+            f'<span style="color:#0369a1; background:#e0f2fe; border:1px solid #bae6fd; '
             f'padding:2px 8px; border-radius:6px; font-weight:600; font-size:0.82rem;">'
             f"{txt}</span>"
         )
     return (
-        '<span style="color:var(--text-muted); background:rgba(148,163,184,0.12); '
+        '<span style="color:#334155; background:#f1f5f9; border:1px solid #cbd5e1; '
         'padding:2px 8px; border-radius:6px; font-weight:600; font-size:0.82rem;">=</span>'
     )
 
@@ -540,26 +540,26 @@ def badge_evoluzione_inline_short_html(
         if pct is None or abs(pct) < 0.05:
             return (
                 '<span title="Invariato rispetto alla rilevazione precedente" '
-                'style="color:var(--text-muted); background:rgba(148,163,184,0.12); '
+                'style="color:#334155; background:#f1f5f9; border:1px solid #cbd5e1; '
                 'padding:2px 6px; border-radius:5px; font-weight:600; font-size:0.78rem; margin-left:5px;">=</span>'
             )
         if pct > 0:
             return (
                 f'<span title="Prezzo competitor aumentato rispetto alla rilevazione precedente" '
-                f'style="color:#FB923C; background:rgba(251,146,60,0.15); '
+                f'style="color:#c2410c; background:#ffedd5; border:1px solid #fed7aa; '
                 f'padding:2px 6px; border-radius:5px; font-weight:600; font-size:0.78rem; margin-left:5px;">'
                 f"▲ +{pct:.1f}%</span>"
             )
         return (
             f'<span title="Prezzo competitor diminuito rispetto alla rilevazione precedente" '
-            f'style="color:#38BDF8; background:rgba(56,189,248,0.15); '
+            f'style="color:#0369a1; background:#e0f2fe; border:1px solid #bae6fd; '
             f'padding:2px 6px; border-radius:5px; font-weight:600; font-size:0.78rem; margin-left:5px;">'
             f"▼ {pct:.1f}%</span>"
         )
     except (ValueError, TypeError):
         return (
             '<span title="Invariato rispetto alla rilevazione precedente" '
-            'style="color:var(--text-muted); background:rgba(148,163,184,0.12); '
+            'style="color:#334155; background:#f1f5f9; border:1px solid #cbd5e1; '
             'padding:2px 6px; border-radius:5px; font-weight:600; font-size:0.78rem; margin-left:5px;">=</span>'
         )
 
@@ -704,8 +704,8 @@ def render_summary_grid(
                         )
                         rows_html.append(
                             f'<div style="display:flex; justify-content:space-between; '
-                            f'align-items:center; padding:4px 0; border-bottom:1px solid var(--border-color);">'
-                            f'<span style="color:var(--text-main); font-size:0.9rem;">{c_nome}</span>'
+                            f'align-items:center; padding:4px 0; border-bottom:1px solid #f1f5f9;">'
+                            f'<span style="color:#0f172a; font-size:0.9rem;">{c_nome}</span>'
                             f'<span style="display:inline-flex; align-items:center;">{badge}{evol_inline}</span></div>'
                         )
 
@@ -737,13 +737,13 @@ def render_comparison_table(
 
     th = (
         "padding:8px 10px;text-align:left;font-weight:700;font-size:0.82rem;"
-        "color:var(--text-muted);border-bottom:1px solid var(--border-color);"
-        "background:var(--secondary-background-color);white-space:nowrap;"
+        "color:#64748b;border-bottom:1px solid #e2e8f0;"
+        "background:#f8fafc;white-space:nowrap;"
         "position:sticky;top:0;"
     )
     td = (
-        "padding:7px 10px;font-size:0.86rem;color:var(--text-color);"
-        "border-bottom:1px solid var(--border-color);white-space:nowrap;"
+        "padding:7px 10px;font-size:0.86rem;color:#0f172a;"
+        "border-bottom:1px solid #e2e8f0;white-space:nowrap;"
     )
 
     head = f'<th style="{th}">SKU</th><th style="{th}">Descrizione</th><th style="{th}">Mio Prezzo (€)</th>'
@@ -774,18 +774,18 @@ def render_comparison_table(
             )
             diff_txt = str(format_diff_con_evoluzione(mio_p, comp_p, comp_prev_p) or "").strip()
             if not diff_txt or diff_txt in ("-", "N/D", "None"):
-                dstyle = "background-color:rgba(148,163,184,0.12);color:var(--text-color);"
+                dstyle = "background-color:#f1f5f9;color:#334155;"
             elif diff_txt.startswith("-"):
-                dstyle = "background-color:rgba(239,68,68,0.18);color:#ef4444;font-weight:600;"
+                dstyle = "background-color:#fee2e2;color:#b91c1c;font-weight:600;"
             else:
-                dstyle = "background-color:rgba(16,185,129,0.18);color:#10b981;font-weight:600;"
+                dstyle = "background-color:#dcfce7;color:#15803d;font-weight:600;"
             row += f'<td style="{td}">{_fmt_eur(comp_p)}</td>'
             row += f'<td style="{td}{dstyle}">{escape(diff_txt or "-")}</td>'
         body += f"<tr>{row}</tr>"
 
     st.markdown(
-        '<div style="overflow:auto;max-height:620px;border:1px solid var(--border-color);'
-        'border-radius:8px;background:var(--background-color);">'
+        '<div style="overflow:auto;max-height:620px;border:1px solid #e2e8f0;'
+        'border-radius:8px;background:#ffffff;">'
         '<table style="border-collapse:collapse;width:100%;">'
         f"<thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>",
         unsafe_allow_html=True,
@@ -1574,16 +1574,16 @@ with tab_competitor:
             )
             diff_disp = format_diff_con_evoluzione(mio_p, comp_p, comp_prev_p)
             if diff_disp == "-":
-                diff_badge_html = '<span style="color:var(--text-muted); font-size:0.88rem;">-</span>'
+                diff_badge_html = '<span style="color:#64748b; font-size:0.88rem;">-</span>'
             elif diff_disp.startswith("-"):
                 diff_badge_html = (
-                    f'<span style="color:#F87171; background:rgba(248,113,113,0.14); '
+                    f'<span style="color:#b91c1c; background:#fee2e2; border:1px solid #fecaca; '
                     f'padding:2px 8px; border-radius:6px; font-weight:600; font-size:0.85rem;">'
                     f'{diff_disp}</span>'
                 )
             else:
                 diff_badge_html = (
-                    f'<span style="color:#4ADE80; background:rgba(74,222,128,0.14); '
+                    f'<span style="color:#15803d; background:#dcfce7; border:1px solid #bbf7d0; '
                     f'padding:2px 8px; border-radius:6px; font-weight:600; font-size:0.85rem;">'
                     f'{diff_disp}</span>'
                 )
@@ -1594,7 +1594,7 @@ with tab_competitor:
                 )
                 lr_cols[0].markdown(sku_disp)
                 lr_cols[1].markdown(
-                    f"**{desc_disp}**<br><span style='color:var(--text-muted);font-size:0.78rem;'>{cat_disp} • {mar_disp}</span>",
+                    f"**{desc_disp}**<br><span style='color:#64748b;font-size:0.78rem;'>{cat_disp} • {mar_disp}</span>",
                     unsafe_allow_html=True,
                 )
                 lr_cols[2].markdown(f"€ {mio_p:.2f}")
@@ -1608,7 +1608,7 @@ with tab_competitor:
                     lr_cols[4].markdown(f"**€ {comp_p:.2f}**")
                 else:
                     lr_cols[4].markdown(
-                        "<span style='color:var(--text-muted); font-size:0.88rem;'>-</span>",
+                        "<span style='color:#64748b; font-size:0.88rem;'>-</span>",
                         unsafe_allow_html=True,
                     )
 

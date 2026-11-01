@@ -90,7 +90,7 @@ def _render_position_circle_html(pos: Any, checked: bool = True) -> str:
         f'<div title="{title_txt}" style="display:inline-flex;align-items:center;'
         f"justify-content:center;width:34px;height:34px;border-radius:50%;"
         f"background-color:{bg_color};color:#ffffff;font-weight:700;"
-        f'font-size:{font_sz};line-height:1;letter-spacing:-0.3px;box-shadow:0 1px 3px rgba(0,0,0,0.35);">'
+        f'font-size:{font_sz};line-height:1;letter-spacing:-0.3px;box-shadow:0 1px 3px rgba(15,23,42,0.18);">'
         f"{text_val}</div>"
     )
 
@@ -99,7 +99,7 @@ def _render_pending_badge_html() -> str:
     """Badge HTML compatto quando la keyword non è ancora stata scansionata."""
     return (
         '<span style="display:inline-block;padding:4px 9px;border-radius:12px;'
-        'background-color:rgba(148,163,184,0.16);color:var(--text-muted);font-size:0.76rem;font-weight:600;">'
+        'background-color:#f1f5f9;border:1px solid #cbd5e1;color:#334155;font-size:0.76rem;font-weight:600;">'
         "In attesa di scansione</span>"
     )
 
@@ -134,8 +134,8 @@ def _render_variation_circle_html(diff: Optional[int]) -> str:
     if diff is None:
         return (
             '<div style="display:inline-flex;align-items:center;justify-content:center;'
-            'width:34px;height:34px;border-radius:50%;background-color:var(--border-color);'
-            'color:var(--text-muted);font-weight:700;font-size:0.82rem;line-height:1;">-</div>'
+            'width:34px;height:34px;border-radius:50%;background-color:#f1f5f9;border:1px solid #cbd5e1;'
+            'color:#334155;font-weight:700;font-size:0.82rem;line-height:1;">-</div>'
         )
 
     bg_color = "#16a34a" if diff >= 0 else "#ea580c"
@@ -150,7 +150,7 @@ def _render_variation_circle_html(diff: Optional[int]) -> str:
         f'<div title="{title_txt}" style="display:inline-flex;align-items:center;'
         f"justify-content:center;width:34px;height:34px;border-radius:50%;"
         f"background-color:{bg_color};color:#ffffff;font-weight:700;"
-        f'font-size:0.82rem;line-height:1;box-shadow:0 1px 3px rgba(0,0,0,0.35);">'
+        f'font-size:0.82rem;line-height:1;box-shadow:0 1px 3px rgba(15,23,42,0.18);">'
         f"{text_val}</div>"
     )
 
@@ -541,7 +541,7 @@ with tab_report:
                                     title_prefix = ":material/star: " if c_row["is_mio"] else ""
                                     st.markdown(
                                         f"{title_prefix}**{c_row['nome']}**<br>"
-                                        f"<span style='color:var(--text-muted);font-size:0.8rem;'><code>{c_row['dominio']}</code></span>",
+                                        f"<span style='color:#64748b;font-size:0.8rem;'><code>{c_row['dominio']}</code></span>",
                                         unsafe_allow_html=True,
                                     )
                                 with rc2:
@@ -704,7 +704,7 @@ with tab_report:
                                         marker=dict(
                                             size=10,
                                             symbol="circle",
-                                            line=dict(width=1.5, color="#0f172a" if st.session_state.get("dark_mode", False) else "#ffffff"),
+                                            line=dict(width=1.5, color="#ffffff"),
                                         ),
                                         hovertemplate=(
                                             f"<b>{s_data['label']}</b><br>"
@@ -715,7 +715,7 @@ with tab_report:
                                 )
 
                             fig.update_layout(
-                                template="plotly_dark" if st.session_state.get("dark_mode", False) else "plotly_white",
+                                template="plotly_white",
                                 paper_bgcolor="rgba(0,0,0,0)",
                                 plot_bgcolor="rgba(0,0,0,0)",
                                 height=380,
