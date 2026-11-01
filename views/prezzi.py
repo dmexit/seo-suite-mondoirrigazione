@@ -737,13 +737,13 @@ def render_comparison_table(
 
     th = (
         "padding:8px 10px;text-align:left;font-weight:700;font-size:0.82rem;"
-        "color:var(--text-muted);border-bottom:1px solid rgba(128,128,128,0.2);"
+        "color:var(--text-muted);border-bottom:1px solid var(--border-color);"
         "background:var(--secondary-background-color);white-space:nowrap;"
         "position:sticky;top:0;"
     )
     td = (
         "padding:7px 10px;font-size:0.86rem;color:var(--text-color);"
-        "border-bottom:1px solid rgba(128,128,128,0.2);white-space:nowrap;"
+        "border-bottom:1px solid var(--border-color);white-space:nowrap;"
     )
 
     head = f'<th style="{th}">SKU</th><th style="{th}">Descrizione</th><th style="{th}">Mio Prezzo (€)</th>'
@@ -784,7 +784,7 @@ def render_comparison_table(
         body += f"<tr>{row}</tr>"
 
     st.markdown(
-        '<div style="overflow:auto;max-height:620px;border:1px solid rgba(128,128,128,0.2);'
+        '<div style="overflow:auto;max-height:620px;border:1px solid var(--border-color);'
         'border-radius:8px;background:var(--background-color);">'
         '<table style="border-collapse:collapse;width:100%;">'
         f"<thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>",

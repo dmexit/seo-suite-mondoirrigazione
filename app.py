@@ -33,10 +33,57 @@ DARK_VARS = """
     --bg-card: #111827;
     --text-main: #f8fafc;
     --text-muted: #94a3b8;
-    --border-color: #1e293b;
+    --border-color: #334155;
     --card-shadow: none;
     --logo-bg: transparent;
     --logo-pad: 0;
+"""
+
+
+DARK_EXTRA_CSS = """
+div[data-baseweb="select"] > div, div[data-baseweb="base-input"], div[data-baseweb="input"],
+div[data-baseweb="textarea"], input, textarea,
+ul[data-baseweb="menu"], div[data-baseweb="popover"], div[data-baseweb="popover"] > div {
+    background-color: #111827 !important;
+    color: #f8fafc !important;
+    border-color: #334155 !important;
+}
+input, textarea, div[data-baseweb="select"] span, div[data-baseweb="select"] div,
+ul[data-baseweb="menu"] li, ul[data-baseweb="menu"] li * {
+    color: #f8fafc !important;
+    -webkit-text-fill-color: #f8fafc !important;
+}
+input::placeholder, textarea::placeholder { color: #94a3b8 !important; -webkit-text-fill-color: #94a3b8 !important; opacity: 1 !important; }
+div[data-baseweb="select"] svg, div[data-baseweb="input"] svg, [data-testid="stNumberInput"] svg { fill: #f8fafc !important; color: #f8fafc !important; }
+ul[data-baseweb="menu"] li:hover, ul[data-baseweb="menu"] li[aria-selected="true"] { background-color: #1e293b !important; }
+button[kind="secondary"], button[data-testid="stBaseButton-secondary"],
+.stButton > button:not([kind="primary"]), [data-testid="stFormSubmitButton"] button[kind="secondaryFormSubmit"],
+[data-testid="stLinkButton"] a, [data-testid="stDownloadButton"] button {
+    background-color: #1e293b !important;
+    color: #f8fafc !important;
+    border: 1px solid #334155 !important;
+}
+button[kind="secondary"] *, button[data-testid="stBaseButton-secondary"] *,
+.stButton > button:not([kind="primary"]) *, [data-testid="stLinkButton"] a *,
+[data-testid="stDownloadButton"] button * { color: #f8fafc !important; }
+button[kind="secondary"]:hover, button[data-testid="stBaseButton-secondary"]:hover,
+.stButton > button:not([kind="primary"]):hover, [data-testid="stLinkButton"] a:hover,
+[data-testid="stDownloadButton"] button:hover {
+    background-color: #334155 !important;
+    border-color: #475569 !important;
+    color: #ffffff !important;
+}
+button[kind="secondary"]:hover *, button[data-testid="stBaseButton-secondary"]:hover *,
+.stButton > button:not([kind="primary"]):hover *, [data-testid="stLinkButton"] a:hover *,
+[data-testid="stDownloadButton"] button:hover * { color: #ffffff !important; }
+button[kind="primary"], button[data-testid="stBaseButton-primary"] { background-color: #2563eb !important; color: #ffffff !important; }
+code, .stMarkdown code, [data-testid="stMarkdownContainer"] code {
+    background-color: #1e293b !important;
+    color: #38bdf8 !important;
+    border: 1px solid #334155 !important;
+}
+[data-testid="stVerticalBlockBorderWrapper"] { background-color: #111827 !important; border: 1px solid #334155 !important; }
+[data-testid="stMetric"] { background-color: #111827 !important; border: 1px solid #1e293b !important; }
 """
 
 
@@ -44,6 +91,7 @@ def inject_theme_css() -> None:
     """Inietta le variabili CSS del tema (Chiaro/Scuro) e gli override globali."""
     dark = st.session_state.get("dark_mode", False)
     variables = DARK_VARS if dark else LIGHT_VARS
+    dark_css = DARK_EXTRA_CSS if dark else ""
     st.markdown(
         f"""
 <style>
@@ -88,7 +136,7 @@ def inject_theme_css() -> None:
     border-radius: 10px;
     box-sizing: border-box;
 }}
-hr {{ border-color: var(--border-color) !important; }}
+hr, [data-testid="stDivider"] {{ border-color: var(--border-color) !important; background-color: var(--border-color) !important; opacity: 1 !important; }}
 /* Pulsanti primari */
 button[kind="primary"], button[data-testid="stBaseButton-primary"],
 .stFormSubmitButton button, [data-testid="stFormSubmitButton"] button,
@@ -141,6 +189,7 @@ button[data-testid="stBaseButton-secondary"]:hover p, button[data-testid="stBase
     color: var(--text-color) !important;
 }}
 [data-baseweb="menu"] li, [data-baseweb="menu"] li * {{ color: var(--text-color) !important; }}
+{dark_css}
 </style>
 """,
         unsafe_allow_html=True,
