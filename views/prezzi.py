@@ -411,7 +411,7 @@ def calcola_diff_pct(mio_prezzo: Optional[float], comp_prezzo: Optional[float]) 
 def badge_diff_html(diff_val: Optional[float]) -> str:
     """Restituisce un badge HTML minimale con colore semantico per la differenza %."""
     if diff_val is None or pd.isna(diff_val):
-        return '<span style="color:#94A3B8; font-size:0.88rem;">N/D</span>'
+        return '<span style="color:var(--text-muted); font-size:0.88rem;">N/D</span>'
     segno = "+" if diff_val > 0 else ""
     if diff_val < 0:
         # Competitor più basso del nostro -> Arancio/Rosso
@@ -492,7 +492,7 @@ def badge_evoluzione_html(
     """Restituisce un badge HTML colorato per l'evoluzione in percentuale rispetto alla rilevazione precedente."""
     txt = format_evoluzione_text(ultimo_prezzo, prezzo_precedente)
     if txt == "N/D":
-        return '<span style="color:#94A3B8; font-size:0.84rem;">N/D</span>'
+        return '<span style="color:var(--text-muted); font-size:0.84rem;">N/D</span>'
     if txt.startswith("▲"):
         return (
             f'<span style="color:#FB923C; background:rgba(251,146,60,0.15); '
@@ -506,7 +506,7 @@ def badge_evoluzione_html(
             f"{txt}</span>"
         )
     return (
-        '<span style="color:#94A3B8; background:rgba(148,163,184,0.12); '
+        '<span style="color:var(--text-muted); background:rgba(148,163,184,0.12); '
         'padding:2px 8px; border-radius:6px; font-weight:600; font-size:0.82rem;">=</span>'
     )
 
@@ -540,7 +540,7 @@ def badge_evoluzione_inline_short_html(
         if pct is None or abs(pct) < 0.05:
             return (
                 '<span title="Invariato rispetto alla rilevazione precedente" '
-                'style="color:#94A3B8; background:rgba(148,163,184,0.12); '
+                'style="color:var(--text-muted); background:rgba(148,163,184,0.12); '
                 'padding:2px 6px; border-radius:5px; font-weight:600; font-size:0.78rem; margin-left:5px;">=</span>'
             )
         if pct > 0:
@@ -559,7 +559,7 @@ def badge_evoluzione_inline_short_html(
     except (ValueError, TypeError):
         return (
             '<span title="Invariato rispetto alla rilevazione precedente" '
-            'style="color:#94A3B8; background:rgba(148,163,184,0.12); '
+            'style="color:var(--text-muted); background:rgba(148,163,184,0.12); '
             'padding:2px 6px; border-radius:5px; font-weight:600; font-size:0.78rem; margin-left:5px;">=</span>'
         )
 
@@ -704,8 +704,8 @@ def render_summary_grid(
                         )
                         rows_html.append(
                             f'<div style="display:flex; justify-content:space-between; '
-                            f'align-items:center; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.06);">'
-                            f'<span style="color:#E2E8F0; font-size:0.9rem;">{c_nome}</span>'
+                            f'align-items:center; padding:4px 0; border-bottom:1px solid var(--border-color);">'
+                            f'<span style="color:var(--text-main); font-size:0.9rem;">{c_nome}</span>'
                             f'<span style="display:inline-flex; align-items:center;">{badge}{evol_inline}</span></div>'
                         )
 
@@ -808,7 +808,7 @@ def render_detail_table(
         def style_diff_cell(val: Any) -> str:
             s = str(val or "").strip()
             if not s or s in ("-", "N/D", "None"):
-                return "color: #94A3B8;"
+                return "color: #64748b;"
             if s.startswith("-"):
                 return "color: #F87171; background-color: rgba(248, 113, 113, 0.14); font-weight: 600;"
             return "color: #4ADE80; background-color: rgba(74, 222, 128, 0.14); font-weight: 600;"
@@ -1501,7 +1501,7 @@ with tab_competitor:
             )
             diff_disp = format_diff_con_evoluzione(mio_p, comp_p, comp_prev_p)
             if diff_disp == "-":
-                diff_badge_html = '<span style="color:#94A3B8; font-size:0.88rem;">-</span>'
+                diff_badge_html = '<span style="color:var(--text-muted); font-size:0.88rem;">-</span>'
             elif diff_disp.startswith("-"):
                 diff_badge_html = (
                     f'<span style="color:#F87171; background:rgba(248,113,113,0.14); '
@@ -1521,7 +1521,7 @@ with tab_competitor:
                 )
                 lr_cols[0].markdown(sku_disp)
                 lr_cols[1].markdown(
-                    f"**{desc_disp}**<br><span style='color:#94A3B8;font-size:0.78rem;'>{cat_disp} • {mar_disp}</span>",
+                    f"**{desc_disp}**<br><span style='color:var(--text-muted);font-size:0.78rem;'>{cat_disp} • {mar_disp}</span>",
                     unsafe_allow_html=True,
                 )
                 lr_cols[2].markdown(f"€ {mio_p:.2f}")
@@ -1535,7 +1535,7 @@ with tab_competitor:
                     lr_cols[4].markdown(f"**€ {comp_p:.2f}**")
                 else:
                     lr_cols[4].markdown(
-                        "<span style='color:#94A3B8; font-size:0.88rem;'>-</span>",
+                        "<span style='color:var(--text-muted); font-size:0.88rem;'>-</span>",
                         unsafe_allow_html=True,
                     )
 

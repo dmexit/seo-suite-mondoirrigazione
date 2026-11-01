@@ -55,7 +55,7 @@ def _render_http_badge_html(http_status: Any) -> str:
     if http_status is None or pd.isna(http_status):
         return (
             '<span style="display:inline-block;padding:3px 8px;border-radius:6px;'
-            'background-color:#334155;color:#94a3b8;font-weight:700;font-size:0.78rem;">—</span>'
+            'background-color:var(--border-color);color:var(--text-muted);font-weight:700;font-size:0.78rem;">—</span>'
         )
     try:
         code = int(float(http_status))
@@ -66,7 +66,7 @@ def _render_http_badge_html(http_status: Any) -> str:
         bg, fg = "rgba(22,163,74,0.18)", "#4ade80"
         txt = "200"
     elif code == 0:
-        bg, fg = "rgba(148,163,184,0.16)", "#94a3b8"
+        bg, fg = "rgba(148,163,184,0.16)", "var(--text-muted)"
         txt = "N/R"
     elif 300 <= code < 400:
         bg, fg = "rgba(234,88,12,0.18)", "#fb923c"
@@ -98,7 +98,7 @@ def _render_rel_badge_html(rel_val: Any) -> str:
     if not rel_clean:
         return (
             '<span style="display:inline-block;padding:3px 8px;border-radius:6px;'
-            'background-color:#334155;color:#94a3b8;font-weight:600;font-size:0.76rem;">—</span>'
+            'background-color:var(--border-color);color:var(--text-muted);font-weight:600;font-size:0.76rem;">—</span>'
         )
 
     if "menzione" in rel_clean:
@@ -275,7 +275,7 @@ with kpi_cols[0]:
     with st.container(border=True):
         st.caption(":material/link: **Totale Monitorati**")
         st.markdown(
-            f"<div style='font-size:1.65rem;font-weight:800;color:#f8fafc;'>{tot_bl}</div>",
+            f"<div style='font-size:1.65rem;font-weight:800;color:var(--text-main);'>{tot_bl}</div>",
             unsafe_allow_html=True,
         )
 with kpi_cols[1]:

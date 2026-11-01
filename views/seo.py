@@ -99,7 +99,7 @@ def _render_pending_badge_html() -> str:
     """Badge HTML compatto quando la keyword non è ancora stata scansionata."""
     return (
         '<span style="display:inline-block;padding:4px 9px;border-radius:12px;'
-        'background-color:rgba(148,163,184,0.16);color:#cbd5e1;font-size:0.76rem;font-weight:600;">'
+        'background-color:rgba(148,163,184,0.16);color:var(--text-muted);font-size:0.76rem;font-weight:600;">'
         "In attesa di scansione</span>"
     )
 
@@ -134,8 +134,8 @@ def _render_variation_circle_html(diff: Optional[int]) -> str:
     if diff is None:
         return (
             '<div style="display:inline-flex;align-items:center;justify-content:center;'
-            'width:34px;height:34px;border-radius:50%;background-color:#334155;'
-            'color:#94a3b8;font-weight:700;font-size:0.82rem;line-height:1;">-</div>'
+            'width:34px;height:34px;border-radius:50%;background-color:var(--border-color);'
+            'color:var(--text-muted);font-weight:700;font-size:0.82rem;line-height:1;">-</div>'
         )
 
     bg_color = "#16a34a" if diff >= 0 else "#ea580c"
@@ -540,7 +540,7 @@ with tab_report:
                                     title_prefix = ":material/star: " if c_row["is_mio"] else ""
                                     st.markdown(
                                         f"{title_prefix}**{c_row['nome']}**<br>"
-                                        f"<span style='color:#94a3b8;font-size:0.8rem;'><code>{c_row['dominio']}</code></span>",
+                                        f"<span style='color:var(--text-muted);font-size:0.8rem;'><code>{c_row['dominio']}</code></span>",
                                         unsafe_allow_html=True,
                                     )
                                 with rc2:
@@ -703,7 +703,7 @@ with tab_report:
                                         marker=dict(
                                             size=10,
                                             symbol="circle",
-                                            line=dict(width=1.5, color="#0f172a"),
+                                            line=dict(width=1.5, color="#0f172a" if st.session_state.get("dark_mode", False) else "#ffffff"),
                                         ),
                                         hovertemplate=(
                                             f"<b>{s_data['label']}</b><br>"
@@ -714,7 +714,9 @@ with tab_report:
                                 )
 
                             fig.update_layout(
-                                template="plotly_dark",
+                                template="plotly_dark" if st.session_state.get("dark_mode", False) else "plotly_white",
+                                paper_bgcolor="rgba(0,0,0,0)",
+                                plot_bgcolor="rgba(0,0,0,0)",
                                 height=380,
                                 margin=dict(l=15, r=15, t=25, b=15),
                                 xaxis=dict(title="Data Rilevazione"),
@@ -738,6 +740,7 @@ with tab_report:
                                 fig,
                                 use_container_width=True,
                                 key=f"plotly_seo_hist_{kw_id}",
+                                theme=None,
                             )
 
                     # ---------------------------------------------------------
