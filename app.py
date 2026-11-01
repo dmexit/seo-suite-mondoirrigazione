@@ -10,6 +10,9 @@ st.set_page_config(
 
 
 LIGHT_VARS = """
+    --background-color: #f8fafc;
+    --secondary-background-color: #ffffff;
+    --text-color: #0f172a;
     --bg-main: #f8fafc;
     --bg-sidebar: #ffffff;
     --bg-card: #ffffff;
@@ -22,6 +25,9 @@ LIGHT_VARS = """
 """
 
 DARK_VARS = """
+    --background-color: #0b0f19;
+    --secondary-background-color: #111827;
+    --text-color: #f8fafc;
     --bg-main: #0b0f19;
     --bg-sidebar: #0f172a;
     --bg-card: #111827;
@@ -83,6 +89,58 @@ def inject_theme_css() -> None:
     box-sizing: border-box;
 }}
 hr {{ border-color: var(--border-color) !important; }}
+/* Pulsanti primari */
+button[kind="primary"], button[data-testid="stBaseButton-primary"],
+.stFormSubmitButton button, [data-testid="stFormSubmitButton"] button,
+button[data-testid="stBaseButton-primaryFormSubmit"] {{
+    background-color: #2563eb !important;
+    color: #ffffff !important;
+    border: none !important;
+}}
+button[kind="primary"] *, button[data-testid="stBaseButton-primary"] *,
+.stFormSubmitButton button *, [data-testid="stFormSubmitButton"] button *,
+button[data-testid="stBaseButton-primaryFormSubmit"] * {{
+    color: #ffffff !important;
+}}
+/* Pulsanti secondari */
+button[kind="secondary"], button[data-testid="stBaseButton-secondary"],
+[data-testid="stDownloadButton"] button {{
+    background-color: var(--secondary-background-color) !important;
+    color: var(--text-color) !important;
+    border: 1px solid rgba(128, 128, 128, 0.35) !important;
+}}
+button[kind="secondary"] p, button[kind="secondary"] span,
+button[data-testid="stBaseButton-secondary"] p, button[data-testid="stBaseButton-secondary"] span,
+[data-testid="stDownloadButton"] button p, [data-testid="stDownloadButton"] button span {{
+    color: var(--text-color) !important;
+}}
+button[kind="secondary"]:hover, button[data-testid="stBaseButton-secondary"]:hover,
+[data-testid="stDownloadButton"] button:hover {{
+    border-color: #3b82f6 !important;
+    color: #3b82f6 !important;
+    background-color: rgba(59, 130, 246, 0.1) !important;
+}}
+button[kind="secondary"]:hover p, button[kind="secondary"]:hover span,
+button[data-testid="stBaseButton-secondary"]:hover p, button[data-testid="stBaseButton-secondary"]:hover span {{
+    color: #3b82f6 !important;
+}}
+/* Input e selectbox */
+[data-baseweb="input"], [data-baseweb="base-input"], [data-baseweb="select"] > div,
+[data-baseweb="textarea"], [data-testid="stNumberInput"] input {{
+    background-color: var(--secondary-background-color) !important;
+    color: var(--text-color) !important;
+}}
+[data-baseweb="input"] input, [data-baseweb="base-input"] input, [data-baseweb="textarea"] textarea,
+[data-baseweb="select"] span, [data-baseweb="select"] input {{
+    background-color: transparent !important;
+    color: var(--text-color) !important;
+    -webkit-text-fill-color: var(--text-color) !important;
+}}
+[data-baseweb="popover"] ul, [data-baseweb="menu"] {{
+    background-color: var(--secondary-background-color) !important;
+    color: var(--text-color) !important;
+}}
+[data-baseweb="menu"] li, [data-baseweb="menu"] li * {{ color: var(--text-color) !important; }}
 </style>
 """,
         unsafe_allow_html=True,

@@ -725,6 +725,73 @@ def render_summary_grid(
                         st.rerun()
 
 
+def render_comparison_table(
+    prodotti_list: List[Dict[str, Any]],
+    competitors_list: List[Dict[str, Any]],
+) -> None:
+    """Tabella comparativa HTML adattiva al tema (chiaro/scuro) con Mio Prezzo, prezzi e Diff % competitor."""
+    from html import escape
+
+    def _fmt_eur(v: Optional[float]) -> str:
+        return f"€ {v:.2f}" if v is not None else "-"
+
+    th = (
+        "padding:8px 10px;text-align:left;font-weight:700;font-size:0.82rem;"
+        "color:var(--text-muted);border-bottom:1px solid rgba(128,128,128,0.2);"
+        "background:var(--secondary-background-color);white-space:nowrap;"
+        "position:sticky;top:0;"
+    )
+    td = (
+        "padding:7px 10px;font-size:0.86rem;color:var(--text-color);"
+        "border-bottom:1px solid rgba(128,128,128,0.2);white-space:nowrap;"
+    )
+
+    head = f'<th style="{th}">SKU</th><th style="{th}">Descrizione</th><th style="{th}">Mio Prezzo (€)</th>'
+    for comp in competitors_list:
+        head += f'<th style="{th}">{escape(str(comp["nome"]))} (€)</th>'
+        head += f'<th style="{th}">{escape(str(comp["nome"]))} Diff %</th>'
+
+    body = ""
+    for p in prodotti_list:
+        p_id = str(p["id"])
+        mio_p = float(p.get("mio_prezzo") or 0.0)
+        row = (
+            f'<td style="{td}">{escape(str(p.get("sku") or "—"))}</td>'
+            f'<td style="{td};white-space:normal;min-width:220px;">{escape(str(p.get("descrizione", "")))}</td>'
+            f'<td style="{td}">{_fmt_eur(mio_p)}</td>'
+        )
+        for comp in competitors_list:
+            rec = assoc_map.get((p_id, str(comp["id"])))
+            comp_p = (
+                float(rec["ultimo_prezzo"])
+                if rec and rec.get("ultimo_prezzo") is not None
+                else None
+            )
+            comp_prev_p = (
+                float(rec["prezzo_precedente"])
+                if rec and rec.get("prezzo_precedente") is not None
+                else None
+            )
+            diff_txt = str(format_diff_con_evoluzione(mio_p, comp_p, comp_prev_p) or "").strip()
+            if not diff_txt or diff_txt in ("-", "N/D", "None"):
+                dstyle = "background-color:rgba(148,163,184,0.12);color:var(--text-color);"
+            elif diff_txt.startswith("-"):
+                dstyle = "background-color:rgba(239,68,68,0.18);color:#ef4444;font-weight:600;"
+            else:
+                dstyle = "background-color:rgba(16,185,129,0.18);color:#10b981;font-weight:600;"
+            row += f'<td style="{td}">{_fmt_eur(comp_p)}</td>'
+            row += f'<td style="{td}{dstyle}">{escape(diff_txt or "-")}</td>'
+        body += f"<tr>{row}</tr>"
+
+    st.markdown(
+        '<div style="overflow:auto;max-height:620px;border:1px solid rgba(128,128,128,0.2);'
+        'border-radius:8px;background:var(--background-color);">'
+        '<table style="border-collapse:collapse;width:100%;">'
+        f"<thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>",
+        unsafe_allow_html=True,
+    )
+
+
 def render_detail_table(
     tipo_filtro: str,
     valore_filtro: str,
@@ -761,63 +828,7 @@ def render_detail_table(
             st.info("Nessun prodotto trovato per questo filtro.", icon=":material/info:")
             return
 
-        rows = []
-        diff_columns = []
-
-        for comp in competitors_list:
-            diff_columns.append(f"{comp['nome']} Diff %")
-
-        for p in filtrati:
-            p_id = str(p["id"])
-            mio_p = float(p.get("mio_prezzo") or 0.0)
-            row: Dict[str, Any] = {
-                "SKU": p.get("sku") or "—",
-                "Descrizione": p.get("descrizione", ""),
-                "Mio Prezzo (€)": mio_p,
-            }
-            for comp in competitors_list:
-                c_id = str(comp["id"])
-                c_nome = comp["nome"]
-                rec = assoc_map.get((p_id, c_id))
-                comp_p = (
-                    float(rec["ultimo_prezzo"])
-                    if rec and rec.get("ultimo_prezzo") is not None
-                    else None
-                )
-                comp_prev_p = (
-                    float(rec["prezzo_precedente"])
-                    if rec and rec.get("prezzo_precedente") is not None
-                    else None
-                )
-                row[f"{c_nome} (€)"] = comp_p
-                row[f"{c_nome} Diff %"] = format_diff_con_evoluzione(mio_p, comp_p, comp_prev_p)
-
-            rows.append(row)
-
-        df_det = pd.DataFrame(rows)
-
-        format_dict: Dict[str, Any] = {
-            "Mio Prezzo (€)": "€ {:.2f}",
-        }
-        for comp in competitors_list:
-            c_nome = comp["nome"]
-            format_dict[f"{c_nome} (€)"] = (
-                lambda x: f"€ {x:.2f}" if pd.notna(x) and x is not None else "-"
-            )
-
-        def style_diff_cell(val: Any) -> str:
-            s = str(val or "").strip()
-            if not s or s in ("-", "N/D", "None"):
-                return "color: #64748b;"
-            if s.startswith("-"):
-                return "color: #F87171; background-color: rgba(248, 113, 113, 0.14); font-weight: 600;"
-            return "color: #4ADE80; background-color: rgba(74, 222, 128, 0.14); font-weight: 600;"
-
-        styled_df = df_det.style.format(format_dict)
-        if diff_columns:
-            styled_df = styled_df.map(style_diff_cell, subset=diff_columns)
-
-        st.dataframe(styled_df, use_container_width=True, hide_index=True)
+        render_comparison_table(filtrati, competitors_list)
 
 
 # =========================================================================
@@ -848,6 +859,64 @@ with tab_report:
         if dettaglio_tipo and dettaglio_valore:
             render_detail_table(dettaglio_tipo, dettaglio_valore, prodotti, competitors)
             st.divider()
+
+        with st.expander(
+            "Visualizza Tutti i Prodotti (Tabella Completa)",
+            icon=":material/table_view:",
+            expanded=False,
+        ):
+            cat_full = ["Tutte"] + sorted(
+                {(p.get("categoria") or "Generale").strip() or "Generale" for p in prodotti},
+                key=lambda x: x.lower(),
+            )
+            mar_full = ["Tutti"] + sorted(
+                {(p.get("marchio") or "Generico").strip() or "Generico" for p in prodotti},
+                key=lambda x: x.lower(),
+            )
+            sort_map = {
+                "Nome (Descrizione A-Z)": "Nome (Descrizione A-Z)",
+                "Nome (Z-A)": "Nome (Z-A)",
+                "Categoria": "Categoria",
+                "Marchio": "Marchio",
+                "SKU": "SKU",
+                "Mio Prezzo (Crescente)": "Prezzo (Crescente)",
+                "Mio Prezzo (Decrescente)": "Prezzo (Decrescente)",
+            }
+            fc1, fc2, fc3, fc4 = st.columns([1.6, 1.2, 1.2, 1.5])
+            with fc1:
+                search_full = st.text_input(
+                    "Cerca prodotto o SKU",
+                    placeholder="Filtra per descrizione, codice, marchio...",
+                    key="txt_search_prod_full_report",
+                )
+            with fc2:
+                cat_sel_full = st.selectbox(
+                    "Filtro Categoria", options=cat_full, key="sel_cat_prod_full_report"
+                )
+            with fc3:
+                mar_sel_full = st.selectbox(
+                    "Filtro Marchio", options=mar_full, key="sel_mar_prod_full_report"
+                )
+            with fc4:
+                sort_sel_full = st.selectbox(
+                    "Ordina per:",
+                    options=list(sort_map.keys()),
+                    key="sel_sort_prod_full_report",
+                )
+            prodotti_full = filtra_e_ordina_prodotti(
+                prodotti,
+                search_query=search_full,
+                cat_filter=cat_sel_full,
+                mar_filter=mar_sel_full,
+                sort_by=sort_map[sort_sel_full],
+            )
+            st.caption(f"Visualizzati **{len(prodotti_full)}** di **{len(prodotti)}** prodotti")
+            if prodotti_full:
+                render_comparison_table(prodotti_full, competitors)
+            else:
+                st.info("Nessun prodotto corrisponde ai filtri.", icon=":material/info:")
+
+        st.divider()
 
         st.subheader(":material/category: Sintesi per Categoria")
         st.caption(
