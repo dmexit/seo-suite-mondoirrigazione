@@ -430,6 +430,7 @@ with tab_report_bl:
         h_cols[3].caption("**URL Sorgente**")
         h_cols[4].caption("**URL Destinazione & Anchor Text**")
         h_cols[5].caption("**Azioni**")
+        st.markdown('<div class="row-divider row-divider-head"></div>', unsafe_allow_html=True)
 
         for bl in filtered_bl:
             bl_id = str(bl["id"])
@@ -563,6 +564,7 @@ with tab_report_bl:
                             use_container_width=True,
                         ):
                             dialog_elimina_backlink(bl)
+            st.markdown('<div class="row-divider"></div>', unsafe_allow_html=True)
 
 
 # -------------------------------------------------------------------------

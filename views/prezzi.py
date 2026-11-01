@@ -1242,6 +1242,7 @@ with tab_prodotti:
         h_cols[4].caption("**Mio Prezzo (€)**")
         h_cols[5].caption("**Modifica**")
         h_cols[6].caption("**Elimina**")
+        st.markdown('<div class="row-divider row-divider-head"></div>', unsafe_allow_html=True)
 
         for p in prodotti_tab2:
             p_id = str(p["id"])
@@ -1276,6 +1277,7 @@ with tab_prodotti:
                         use_container_width=True,
                     ):
                         dialog_elimina_prodotto(p)
+            st.markdown('<div class="row-divider"></div>', unsafe_allow_html=True)
 
 
 # -------------------------------------------------------------------------
@@ -1443,6 +1445,7 @@ with tab_competitor:
                                 use_container_width=True,
                             ):
                                 dialog_elimina_competitor(comp)
+                    st.markdown('<div class="row-divider"></div>', unsafe_allow_html=True)
 
     st.divider()
 
@@ -1547,6 +1550,7 @@ with tab_competitor:
         lh_cols[4].caption("**Prezzo Comp. (€)**")
         lh_cols[5].caption("**Diff. %**")
         lh_cols[6].caption("**Azione**")
+        st.markdown('<div class="row-divider row-divider-head"></div>', unsafe_allow_html=True)
 
         for p in prodotti_tab3:
             p_id = str(p["id"])
@@ -1618,3 +1622,4 @@ with tab_competitor:
                         use_container_width=True,
                     ):
                         dialog_modifica_link_competitor(p, selected_comp_obj, rec)
+            st.markdown('<div class="row-divider"></div>', unsafe_allow_html=True)

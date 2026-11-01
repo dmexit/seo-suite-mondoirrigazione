@@ -373,6 +373,7 @@ with tab_report:
         h_cols[2].caption("**Mia Posizione Attuale**")
         h_cols[3].caption("**Variazione**")
         h_cols[4].caption("**Analisi SERP**")
+        st.markdown('<div class="row-divider row-divider-head"></div>', unsafe_allow_html=True)
 
         selected_kw_id = st.session_state.get("selected_seo_kw")
         comp_name_map: Dict[str, str] = {
@@ -834,6 +835,7 @@ with tab_report:
                                 with t5_c4:
                                     if t5_link:
                                         st.markdown(f"[:material/open_in_new:]({t5_link})")
+            st.markdown('<div class="row-divider"></div>', unsafe_allow_html=True)
 
 
 # -------------------------------------------------------------------------
@@ -982,6 +984,7 @@ with tab_keywords:
         kh[1].caption("**Volume Mensile**")
         kh[2].caption("**Posizione Attuale**")
         kh[3].caption("**Elimina**")
+        st.markdown('<div class="row-divider row-divider-head"></div>', unsafe_allow_html=True)
 
         for kw in keywords:
             kw_id = str(kw["id"])
@@ -1005,6 +1008,7 @@ with tab_keywords:
                         use_container_width=True,
                     ):
                         dialog_elimina_keyword(kw)
+            st.markdown('<div class="row-divider"></div>', unsafe_allow_html=True)
 
 
 # -------------------------------------------------------------------------
@@ -1071,6 +1075,7 @@ with tab_comp_seo:
         ch[1].caption("**Dominio Pulito**")
         ch[2].caption("**Monitoraggio SEO**")
         ch[3].caption("**Elimina**")
+        st.markdown('<div class="row-divider row-divider-head"></div>', unsafe_allow_html=True)
 
         for comp in all_competitors:
             c_id = str(comp["id"])
@@ -1120,3 +1125,4 @@ with tab_comp_seo:
                                 f"Errore durante l'eliminazione: {exc}",
                                 icon=":material/error:",
                             )
+            st.markdown('<div class="row-divider"></div>', unsafe_allow_html=True)
